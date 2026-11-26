@@ -37,6 +37,13 @@ class Store(ctx: Context) {
     var booksPrayer: Boolean get() = b("books_prayer", false); set(v) = pb("books_prayer", v)
     var bookPages: Int get() = i("book_pages", 0); set(v) = pi("book_pages", v)
     var obPage: Int get() = i("ob_page", 0); set(v) = pi("ob_page", v)
+    var maxPerDay: Int get() = i("max_day", 0); set(v) = pi("max_day", v.coerceIn(0, 100))
+    var shownDay: String get() = s("shown_day"); set(v) = ps("shown_day", v)
+    var shownCount: Int get() = i("shown_count", 0); set(v) = pi("shown_count", v)
+    var quietOn: Boolean get() = b("quiet_on", false); set(v) = pb("quiet_on", v)
+    var quietFrom: Int get() = i("quiet_from", 23 * 60); set(v) = pi("quiet_from", v.coerceIn(0, 1439))
+    var quietTo: Int get() = i("quiet_to", 6 * 60); set(v) = pi("quiet_to", v.coerceIn(0, 1439))
+    var smartVideo: Boolean get() = b("smart_video", true); set(v) = pb("smart_video", v)
     var onboarded: Boolean get() = b("onboarded", false); set(v) = pb("onboarded", v)
 
     // prayer
@@ -96,7 +103,7 @@ class Store(ctx: Context) {
         o.put("v", 1); o.put("target_min", targetMin); o.put("page", page); o.put("snooze_min", snoozeMin)
         o.put("days", daysCsv); o.put("total", totalPages); o.put("later", laterCount); o.put("sum_ms", sumMs); o.put("done_cnt", doneCount)
         o.put("city", city); o.put("country", country); o.put("p_before", pBefore); o.put("p_after", pAfter); o.put("prayer_on", prayerOn)
-        o.put("auto_backup", autoBackup); o.put("mode", mode); o.put("books_prayer", booksPrayer)
+        o.put("auto_backup", autoBackup); o.put("mode", mode); o.put("max_day", maxPerDay); o.put("quiet_on", quietOn); o.put("quiet_from", quietFrom); o.put("quiet_to", quietTo); o.put("smart_video", smartVideo); o.put("books_prayer", booksPrayer)
         return o.toString()
     }
     fun importJson(t: String) {
@@ -116,6 +123,11 @@ class Store(ctx: Context) {
         if (o.has("prayer_on")) prayerOn = o.getBoolean("prayer_on")
         if (o.has("auto_backup")) autoBackup = o.getBoolean("auto_backup")
         if (o.has("mode")) mode = o.getString("mode")
+        if (o.has("max_day")) maxPerDay = o.getInt("max_day")
+        if (o.has("quiet_on")) quietOn = o.getBoolean("quiet_on")
+        if (o.has("quiet_from")) quietFrom = o.getInt("quiet_from")
+        if (o.has("quiet_to")) quietTo = o.getInt("quiet_to")
+        if (o.has("smart_video")) smartVideo = o.getBoolean("smart_video")
         if (o.has("books_prayer")) booksPrayer = o.getBoolean("books_prayer")
         prayerData = ""; prayerTry = 0L
     }

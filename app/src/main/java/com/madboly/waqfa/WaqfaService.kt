@@ -51,6 +51,7 @@ class WaqfaService : Service() {
             val hold = if (Library.nextIsBook(store) && !store.booksPrayer) null else Prayer.blockedUntil(store)
             store.holdMsg = if (hold != null) "مؤجّل لوقت الصلاة حتى $hold" else ""
             Background.accrue(this@WaqfaService, false)
+            val smart = Wird.smartHold(this@WaqfaService, store)
             val call = inCall()
             val canDraw = Settings.canDrawOverlays(this@WaqfaService)
             val ready = store.accMs >= store.targetMin * 60000L
@@ -60,13 +61,14 @@ class WaqfaService : Service() {
                 !canDraw -> "ناقص إذن الظهور فوق التطبيقات (فعّله من الإعدادات)"
                 !ready -> ""
                 hold != null -> "مؤجّل لوقت الصلاة حتى $hold"
+                smart != null -> smart
                 store.pausedToday() -> "موقوف لباقي اليوم (من الإعدادات)"
                 call -> "مؤجّل: النظام في وضع مكالمة أو رنين"
                 else -> ""
             }
             if (store.why != lastWhy) { lastWhy = store.why; Log.i(this@WaqfaService, "state: " + (if (lastWhy.isEmpty()) "ok" else lastWhy) + " acc=" + (store.accMs / 1000) + "s") }
             if (active) {
-                if (overlay == null && hold == null && ready && !store.pausedToday() && !call) {
+                if (overlay == null && hold == null && smart == null && ready && !store.pausedToday() && !call) {
                     if (canDraw) showOverlay() else notifyFallback()
                 }
             }
@@ -117,11 +119,11 @@ class WaqfaService : Service() {
     private fun notifyFallback() {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(NotificationChannel("waqfa_alert", "تنبيه الورد", NotificationManager.IMPORTANCE_HIGH))
-        val open = PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val open = PendingIntent.getActivity(this, 1, Intent(this, MainActivity::class.java).putExtra("reader", true), PendingIntent.FLAG_IMMUTABLE)
         nm.notify(2, Notification.Builder(this, "waqfa_alert").setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("وقت وردك").setContentText("اسمح بالظهور فوق التطبيقات من وَقفَة عشان تظهر الصفحة").setContentIntent(open).setAutoCancel(true).build())
+            .setContentTitle("وقت وردك").setContentText("اضغط لقراءة ورد اليوم (وللنافذة فوق التطبيقات اسمح بالظهور من الإعدادات)").setContentIntent(open).setAutoCancel(true).build())
         store.lastErr = "overlay permission missing"
-        store.accMs = (store.targetMin - store.snoozeMin).coerceAtLeast(0) * 60000L
+        store.accMs = Wird.laterAcc(store)
     }
 
     private fun inCall(): Boolean {
@@ -187,31 +189,26 @@ class WaqfaService : Service() {
         root.addView(mn, FrameLayout.LayoutParams(dp(38), dp(38)).apply { gravity = Gravity.TOP or Gravity.RIGHT; setMargins(dp(22), dp(46), dp(22), 0) })
         mn.setOnClickListener { minimize(page) }
         done.setOnClickListener {
-            Log.i(this, "done pressed"); if (!testMode) {
-                store.recordDone(store.accMs)
-                if (book != null) { Library.advance(store, book.id); store.bookPages = store.bookPages + 1 } else store.page = page + 1
-                if (store.mode == "alt" && Library.current(store) != null) store.altTurn = 1 - store.altTurn
-                store.accMs = 0L
-            }; hideOverlay()
+            Log.i(this, "done pressed"); if (!testMode) Wird.applyDone(store, book, page); hideOverlay()
         }
         later.setOnClickListener {
-            Log.i(this, "later pressed"); if (!testMode) { store.laterCount = store.laterCount + 1; store.accMs = (store.targetMin - store.snoozeMin).coerceAtLeast(0) * 60000L }; hideOverlay()
+            Log.i(this, "later pressed"); if (!testMode) Wird.applyLater(store); hideOverlay()
         }
         val lp = WindowManager.LayoutParams(
             -1, -1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
             PixelFormat.TRANSLUCENT)
         bigView = root
-        try { wm.addView(root, lp); overlay = root; store.overlayUp = true; store.lastErr = ""; Log.i(this, "window shown, page $page"); alertNote(page); checkVisible(root) } catch (e: Throwable) { overlay = null; store.lastErr = "overlay: " + e.javaClass.simpleName + " " + (e.message ?: ""); Log.i(this, "window FAILED: " + store.lastErr) }
+        try { wm.addView(root, lp); overlay = root; store.overlayUp = true; store.lastErr = ""; Wird.markShown(store); Log.i(this, "window shown, page $page"); checkVisible(root) } catch (e: Throwable) { overlay = null; store.lastErr = "overlay: " + e.javaClass.simpleName + " " + (e.message ?: ""); Log.i(this, "window FAILED: " + store.lastErr); alertNote(page); store.accMs = Wird.laterAcc(store) }
     }
 
     private fun alertNote(page: Int) {
         try {
             val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(NotificationChannel("waqfa_alert2", "تنبيه الورد", NotificationManager.IMPORTANCE_HIGH))
-            val open = PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE)
+            val open = PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java).putExtra("reader", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE)
             nm.notify(3, Notification.Builder(this, "waqfa_alert2").setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-                .setContentTitle("وقت وردك").setContentText("صفحة $page، اضغط لعرضها").setContentIntent(open)
+                .setContentTitle("وقت وردك").setContentText("اضغط لقراءة ورد اليوم").setContentIntent(open)
                 .setFullScreenIntent(open, true).setCategory(Notification.CATEGORY_ALARM).setAutoCancel(true).build())
             Log.i(this, "alert notification posted")
         } catch (e: Throwable) { Log.i(this, "alert notification FAILED: " + e.javaClass.simpleName) }
@@ -223,7 +220,10 @@ class WaqfaService : Service() {
                 val ok = v.isAttachedToWindow && v.isShown && v.windowVisibility == View.VISIBLE
                 Log.i(this, "window check after 2s: attached=" + v.isAttachedToWindow + " shown=" + v.isShown + " winVis=" + v.windowVisibility + " size=" + v.width + "x" + v.height)
                 if (!ok && overlay != null) {
-                    try { startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); Log.i(this, "fallback: opened app activity") }
+                    hideOverlay()
+                    store.accMs = Wird.laterAcc(store)
+                    alertNote(store.page)
+                    try { startActivity(Intent(this, MainActivity::class.java).putExtra("reader", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); Log.i(this, "fallback: opened in-app reader") }
                     catch (e: Throwable) { Log.i(this, "fallback activity FAILED: " + e.javaClass.simpleName) }
                 }
             } catch (_: Throwable) {}

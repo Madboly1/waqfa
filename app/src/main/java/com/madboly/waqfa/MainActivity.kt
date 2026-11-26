@@ -92,10 +92,40 @@ class MainActivity : Activity() {
         try {
             try { Background.scheduleAll(this) } catch (e: Throwable) { store.lastErr = "sched: " + e.javaClass.simpleName }
             try { handleIntent(intent) } catch (e: Throwable) { store.lastErr = "intent: " + e.javaClass.simpleName }
-            if (!store.onboarded) showOnboarding() else showHome()
+            if (intent?.getBooleanExtra("reader", false) == true) showReader() else if (!store.onboarded) showOnboarding() else showHome()
             if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         } catch (e: Throwable) { showError("خطأ عند الفتح", trace(e)) }
+    }
+
+    private fun showReader() {
+        screen = "reader"
+        intent?.removeExtra("reader")
+        val book = if (Library.nextIsBook(store)) Library.current(store) else null
+        val page = if (book != null) book.cur else store.page
+        val root = LinearLayout(this); root.orientation = LinearLayout.VERTICAL; root.setBackgroundColor(cream); root.layoutDirection = View.LAYOUT_DIRECTION_RTL
+        val hd = TextView(this); hd.setTextColor(Color.WHITE); hd.textSize = 17f; hd.gravity = Gravity.CENTER; hd.setBackgroundColor(green); hd.setPadding(dp(16), dp(36), dp(16), dp(12))
+        hd.text = if (book != null) "وردك الآن  ·  " + book.title + "  ·  صفحة $page من " + book.count else "وردك الآن  ·  صفحة $page"
+        root.addView(hd, LinearLayout.LayoutParams(-1, -2))
+        if (book != null && book.type != "pdf") {
+            val tv = TextView(this); tv.text = Library.textPage(this, book, page); tv.textSize = 18f; tv.setTextColor(Color.parseColor("#222222"))
+            tv.setLineSpacing(0f, 1.25f); tv.setPadding(dp(18), dp(14), dp(18), dp(14)); tv.textDirection = View.TEXT_DIRECTION_FIRST_STRONG
+            val sc = ScrollView(this); sc.addView(tv); root.addView(sc, LinearLayout.LayoutParams(-1, 0, 1f))
+        } else {
+            val img = ImageView(this); img.scaleType = ImageView.ScaleType.FIT_CENTER; img.setPadding(dp(6), dp(6), dp(6), dp(6))
+            try {
+                val bmp = if (book != null) Library.pdfPage(this, book, page, resources.displayMetrics.widthPixels)
+                else assets.open(String.format(Locale.US, "pages/p%03d.webp", page)).use { android.graphics.BitmapFactory.decodeStream(it) }
+                if (bmp != null) img.setImageBitmap(bmp)
+            } catch (_: Throwable) {}
+            root.addView(img, LinearLayout.LayoutParams(-1, 0, 1f))
+        }
+        val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL; row.setPadding(dp(10), dp(8), dp(10), dp(16))
+        row.addView(btn("قرأت وردي") { Wird.applyDone(store, book, page); try { (getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager).cancel(3); (getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager).cancel(2) } catch (_: Throwable) {}; showHome() }, LinearLayout.LayoutParams(0, dp(52), 2f).apply { setMargins(dp(4), 0, dp(4), 0) })
+        row.addView(btn("لاحقًا", false) { Wird.applyLater(store); showHome() }, LinearLayout.LayoutParams(0, dp(52), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
+        root.addView(row, LinearLayout.LayoutParams(-1, -2))
+        Wird.markShown(store)
+        setContentView(root)
     }
 
     private fun showLog() {
@@ -132,7 +162,7 @@ class MainActivity : Activity() {
         setContentView(sv)
     }
 
-    override fun onNewIntent(i: Intent) { super.onNewIntent(i); setIntent(i); handleIntent(i) }
+    override fun onNewIntent(i: Intent) { super.onNewIntent(i); setIntent(i); handleIntent(i); if (i.getBooleanExtra("reader", false)) { i.removeExtra("reader"); try { showReader() } catch (e: Throwable) { showError("خطأ في القراءة", trace(e)) } } }
 
     private fun handleIntent(i: Intent?) {
         val d = i?.data ?: return
@@ -245,6 +275,27 @@ class MainActivity : Activity() {
             }
             drawModes(); s.addView(modeRow, lp(4))
             s.addView(label("بالتناوب: مرة صفحة قرآن ومرة صفحة من كتابك الحالي. لو ما أضفت كتابًا يظهر القرآن.", 12f).apply { setTextColor(Color.GRAY) }, lp(8))
+        }
+
+        section(col, "التنبيه الذكي", false) { s ->
+            val sv = CheckBox(this); sv.text = "تأجيل النافذة والشاشة بالعرض (فيديو أو ألعاب)"; sv.isChecked = store.smartVideo
+            sv.setOnCheckedChangeListener { _, o -> store.smartVideo = o }; s.addView(sv)
+            s.addView(label("المكالمات تؤجّل النافذة تلقائيًا دائمًا.", 12f).apply { setTextColor(Color.GRAY) }, lp(2))
+            s.addView(label("مدة «لاحقًا» بالدقائق (وقت شاشة)", 15f, true), lp(12))
+            val le = numField("مثلًا ٥", store.snoozeMin.toString())
+            s.addView(textRow(le, "حفظ") { val v = num(le.text.toString()); if (v != null && v in 1..120) { store.snoozeMin = v; le.setText(v.toString()); toast("تم الحفظ: $v دقيقة") } else toast("اكتب رقم من 1 إلى 120") }, lp(4))
+            s.addView(label("أقصى عدد نوافذ في اليوم (٠ بلا حد)", 15f, true), lp(12))
+            val me = numField("٠", store.maxPerDay.toString())
+            s.addView(textRow(me, "حفظ") { val v = num(me.text.toString()); if (v != null && v in 0..100) { store.maxPerDay = v; me.setText(v.toString()); toast("تم الحفظ: $v") } else toast("اكتب رقم من 0 إلى 100") }, lp(4))
+            val qc = CheckBox(this); qc.text = "ساعات الهدوء (بلا نوافذ)"; qc.isChecked = store.quietOn
+            qc.setOnCheckedChangeListener { _, o -> store.quietOn = o }; s.addView(qc, lp(12))
+            val qf = numField("من الساعة (0-23)", (store.quietFrom / 60).toString()); val qt = numField("إلى الساعة (0-23)", (store.quietTo / 60).toString())
+            val qr = LinearLayout(this); qr.orientation = LinearLayout.HORIZONTAL
+            qr.addView(qf, LinearLayout.LayoutParams(0, -2, 1f)); qr.addView(qt, LinearLayout.LayoutParams(0, -2, 1f)); s.addView(qr, lp(4))
+            s.addView(btn("حفظ ساعات الهدوء", false) {
+                val f = num(qf.text.toString()); val t = num(qt.text.toString())
+                if (f != null && t != null && f in 0..23 && t in 0..23) { store.quietFrom = f * 60; store.quietTo = t * 60; qf.setText(f.toString()); qt.setText(t.toString()); toast("تم الحفظ") } else toast("اكتب ساعات من 0 إلى 23")
+            }, lp(6))
         }
 
         section(col, "الكتب", false) { s ->
@@ -456,7 +507,7 @@ class MainActivity : Activity() {
 
     private fun refresh() {
         val on = store.enabled
-        val sec = store.accMs / 1000
+        val sec = (store.accMs / 1000).coerceAtLeast(0)
         val tgt = store.targetMin
         fun mmss(x: Long) = String.format(Locale.US, "%d:%02d", x / 60, x % 60)
         val age = (System.currentTimeMillis() - store.lastTick) / 1000
