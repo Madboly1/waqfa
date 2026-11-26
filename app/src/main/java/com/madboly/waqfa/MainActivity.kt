@@ -425,11 +425,21 @@ class MainActivity : Activity() {
                 startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
             }
             if (perms?.childCount == 0) perms?.addView(label("كل الأذونات تمام ✓", 14f))
+            if (Build.VERSION.SDK_INT >= 34) {
+                val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+                if (!nm.canUseFullScreenIntent()) permRow("السماح بالإشعارات بملء الشاشة") {
+                    try { startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName"))) } catch (_: Throwable) {}
+                }
+            }
             val mf = Build.MANUFACTURER.lowercase()
             if (mf.contains("xiaomi") || mf.contains("redmi") || mf.contains("poco")) {
                 perms?.addView(label("جهاز شاومي: لازم تفعّل ثلاثة أشياء عشان النافذة تظهر في الخلفية: (١) التشغيل التلقائي لوَقفَة. (٢) توفير الطاقة لوَقفَة على «بلا قيود». (٣) اقفل التطبيق في شاشة التطبيقات الأخيرة (اسحب البطاقة لأسفل أو اضغط عليها مطولًا ثم القفل).", 13f), lp(12))
                 permRow("فتح صفحة التشغيل التلقائي") {
                     try { startActivity(Intent().setClassName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")) }
+                    catch (_: Throwable) { try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) } catch (_: Throwable) {} }
+                }
+                permRow("فتح أذونات شاومي (النوافذ المنبثقة في الخلفية، العرض على شاشة القفل)") {
+                    try { startActivity(Intent("miui.intent.action.APP_PERM_EDITOR").setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity").putExtra("extra_pkgname", packageName)) }
                     catch (_: Throwable) { try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) } catch (_: Throwable) {} }
                 }
                 permRow("فتح صفحة البطارية للتطبيق (اختر بلا قيود)") {

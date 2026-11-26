@@ -183,7 +183,32 @@ class WaqfaService : Service() {
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT)
         bigView = root
-        try { wm.addView(root, lp); overlay = root; store.overlayUp = true; store.lastErr = ""; Log.i(this, "window shown, page $page") } catch (e: Throwable) { overlay = null; store.lastErr = "overlay: " + e.javaClass.simpleName + " " + (e.message ?: ""); Log.i(this, "window FAILED: " + store.lastErr) }
+        try { wm.addView(root, lp); overlay = root; store.overlayUp = true; store.lastErr = ""; Log.i(this, "window shown, page $page"); alertNote(page); checkVisible(root) } catch (e: Throwable) { overlay = null; store.lastErr = "overlay: " + e.javaClass.simpleName + " " + (e.message ?: ""); Log.i(this, "window FAILED: " + store.lastErr) }
+    }
+
+    private fun alertNote(page: Int) {
+        try {
+            val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(NotificationChannel("waqfa_alert2", "تنبيه الورد", NotificationManager.IMPORTANCE_HIGH))
+            val open = PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE)
+            nm.notify(3, Notification.Builder(this, "waqfa_alert2").setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setContentTitle("وقت وردك").setContentText("صفحة $page، اضغط لعرضها").setContentIntent(open)
+                .setFullScreenIntent(open, true).setCategory(Notification.CATEGORY_ALARM).setAutoCancel(true).build())
+            Log.i(this, "alert notification posted")
+        } catch (e: Throwable) { Log.i(this, "alert notification FAILED: " + e.javaClass.simpleName) }
+    }
+
+    private fun checkVisible(v: View) {
+        h.postDelayed({
+            try {
+                val ok = v.isAttachedToWindow && v.isShown && v.windowVisibility == View.VISIBLE
+                Log.i(this, "window check after 2s: attached=" + v.isAttachedToWindow + " shown=" + v.isShown + " winVis=" + v.windowVisibility + " size=" + v.width + "x" + v.height)
+                if (!ok && overlay != null) {
+                    try { startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); Log.i(this, "fallback: opened app activity") }
+                    catch (e: Throwable) { Log.i(this, "fallback activity FAILED: " + e.javaClass.simpleName) }
+                }
+            } catch (_: Throwable) {}
+        }, 2000)
     }
 
     private fun minimize(page: Int) {
@@ -223,6 +248,7 @@ class WaqfaService : Service() {
         bubble?.let { try { wm.removeView(it) } catch (_: Exception) {} }; bubble = null
         bigView?.let { try { wm.removeView(it) } catch (_: Exception) {} }; bigView = null
         overlay = null; testMode = false; store.overlayUp = false
+        try { (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(3) } catch (_: Throwable) {}
         Background.accrue(this, false)
     }
 
