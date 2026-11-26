@@ -15,7 +15,7 @@ import android.content.Intent
 object Background {
     fun startService(c: Context) {
         if (!Store(c).enabled) return
-        try { c.startForegroundService(Intent(c, WaqfaService::class.java)) } catch (e: Throwable) { Store(c).lastErr = "start: " + e.javaClass.simpleName }
+        try { c.startForegroundService(Intent(c, WaqfaService::class.java)) } catch (e: Throwable) { Store(c).lastErr = "start: " + e.javaClass.simpleName; Log.i(c, "service start FAILED: " + e.javaClass.simpleName) }
     }
 
     fun scheduleAll(c: Context) {
@@ -42,6 +42,7 @@ object Background {
                 val gap = now - st.sAt
                 if (gap in 1..CAP && !st.overlayUp) st.accMs = st.accMs + gap
             }
+            if (event) Log.i(c, "screen event, active=$act acc=${st.accMs / 1000}s")
             st.sAt = now; st.sActive = act
             if (st.enabled) scheduleDue(c, st, act)
         } catch (_: Throwable) {}
@@ -82,6 +83,7 @@ object Background {
 class MaintenanceJob : JobService() {
     override fun onStartJob(p: JobParameters): Boolean {
         Background.accrue(this, false)
+        Log.i(this, "6h job ran")
         Background.startService(this)
         Thread { try { Background.maintain(this) } catch (_: Throwable) {} finally { jobFinished(p, false) } }.start()
         return true
@@ -92,6 +94,7 @@ class MaintenanceJob : JobService() {
 class DueReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, i: Intent) {
         Background.accrue(c, false)
+        Log.i(c, "due alarm fired, acc=${Store(c).accMs / 1000}s of ${Store(c).targetMin * 60}s")
         Background.startService(c)
     }
 }
@@ -99,6 +102,7 @@ class DueReceiver : BroadcastReceiver() {
 class WatchdogReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, i: Intent) {
         Background.accrue(c, false)
+        Log.i(c, "watchdog ran, acc=${Store(c).accMs / 1000}s")
         Background.startService(c)
         Background.scheduleWatchdog(c)
     }

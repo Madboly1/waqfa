@@ -9,8 +9,8 @@ android {
         applicationId = "com.madboly.waqfa"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10
-        versionName = "0.2.4"
+        versionCode = 11
+        versionName = "0.2.5"
     }
     signingConfigs {
         create("release") {

@@ -32,6 +32,7 @@ class WaqfaService : Service() {
     private var bubble: View? = null
     private var bigView: View? = null
     private var testMode = false
+    private var lastWhy = "?"
     private val tick = object : Runnable {
         override fun run() {
             try { step() } catch (e: Throwable) { store.lastErr = "tick: " + e.javaClass.simpleName + " " + (e.message ?: "") }
@@ -62,6 +63,7 @@ class WaqfaService : Service() {
                 call -> "مؤجّل: النظام في وضع مكالمة أو رنين"
                 else -> ""
             }
+            if (store.why != lastWhy) { lastWhy = store.why; Log.i(this@WaqfaService, "state: " + (if (lastWhy.isEmpty()) "ok" else lastWhy) + " acc=" + (store.accMs / 1000) + "s") }
             if (active) {
                 if (overlay == null && hold == null && ready && !store.pausedToday() && !call) {
                     if (canDraw) showOverlay() else notifyFallback()
@@ -90,6 +92,7 @@ class WaqfaService : Service() {
         super.onCreate()
         store = Store(this)
         store.overlayUp = false
+        Log.i(this, "service created")
         try { registerReceiver(screenRx, android.content.IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_USER_PRESENT) }) } catch (_: Throwable) {}
         val ch = NotificationChannel("waqfa", "وَقفَة", NotificationManager.IMPORTANCE_MIN)
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(ch)
@@ -104,6 +107,7 @@ class WaqfaService : Service() {
         try { startForeground(1, n) } catch (e: Throwable) { store.lastErr = "fgs: " + e.javaClass.simpleName; stopSelf(); return START_NOT_STICKY }
         try { Background.scheduleAll(this) } catch (e: Throwable) { store.lastErr = "sched: " + e.javaClass.simpleName }
         if (i?.getBooleanExtra("test", false) == true) { if (overlay == null) { testMode = true; showOverlay() } }
+        Log.i(this, "service started cmd")
         last = System.currentTimeMillis()
         h.removeCallbacks(tick); h.post(tick)
         return START_STICKY
@@ -169,17 +173,17 @@ class WaqfaService : Service() {
         root.addView(mn, FrameLayout.LayoutParams(dp(38), dp(38)).apply { gravity = Gravity.TOP or Gravity.RIGHT; setMargins(dp(22), dp(46), dp(22), 0) })
         mn.setOnClickListener { minimize(page) }
         done.setOnClickListener {
-            if (!testMode) { store.recordDone(store.accMs); store.page = page + 1; store.accMs = 0L }; hideOverlay()
+            Log.i(this, "done pressed"); if (!testMode) { store.recordDone(store.accMs); store.page = page + 1; store.accMs = 0L }; hideOverlay()
         }
         later.setOnClickListener {
-            if (!testMode) { store.laterCount = store.laterCount + 1; store.accMs = (store.targetMin - store.snoozeMin).coerceAtLeast(0) * 60000L }; hideOverlay()
+            Log.i(this, "later pressed"); if (!testMode) { store.laterCount = store.laterCount + 1; store.accMs = (store.targetMin - store.snoozeMin).coerceAtLeast(0) * 60000L }; hideOverlay()
         }
         val lp = WindowManager.LayoutParams(
             -1, -1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT)
         bigView = root
-        try { wm.addView(root, lp); overlay = root; store.overlayUp = true; store.lastErr = "" } catch (e: Throwable) { overlay = null; store.lastErr = "overlay: " + e.javaClass.simpleName + " " + (e.message ?: "") }
+        try { wm.addView(root, lp); overlay = root; store.overlayUp = true; store.lastErr = ""; Log.i(this, "window shown, page $page") } catch (e: Throwable) { overlay = null; store.lastErr = "overlay: " + e.javaClass.simpleName + " " + (e.message ?: ""); Log.i(this, "window FAILED: " + store.lastErr) }
     }
 
     private fun minimize(page: Int) {
@@ -225,6 +229,6 @@ class WaqfaService : Service() {
     override fun onTaskRemoved(rootIntent: Intent?) { Background.scheduleWatchdog(this); super.onTaskRemoved(rootIntent) }
 
     override fun onDestroy() {
-        h.removeCallbacks(tick); try { unregisterReceiver(screenRx) } catch (_: Throwable) {}; hideOverlay(); super.onDestroy()
+        Log.i(this, "service destroyed"); h.removeCallbacks(tick); try { unregisterReceiver(screenRx) } catch (_: Throwable) {}; hideOverlay(); super.onDestroy()
     }
 }

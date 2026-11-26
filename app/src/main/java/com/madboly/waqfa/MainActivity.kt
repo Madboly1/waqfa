@@ -95,6 +95,18 @@ class MainActivity : Activity() {
         } catch (e: Throwable) { showError("خطأ عند الفتح", trace(e)) }
     }
 
+    private fun showLog() {
+        screen = "log"
+        val (sv, col) = page()
+        col.addView(label("سجل التشخيص", 22f, true))
+        col.addView(label("الإصدار " + (try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Throwable) { "?" }) + "  |  المدة " + store.targetMin + " د  |  العداد " + (store.accMs / 1000) + " ث  |  الخدمة " + (if (store.enabled) "مفعّلة" else "متوقفة") + "  |  نبضة " + ((System.currentTimeMillis() - store.lastTick) / 1000) + " ث", 12f), lp(6))
+        col.addView(TextView(this).apply { text = Log.read(this@MainActivity); textSize = 11f; setTextIsSelectable(true); setTextColor(Color.parseColor("#222222")); layoutDirection = View.LAYOUT_DIRECTION_LTR; setPadding(0, dp(10), 0, dp(10)) })
+        col.addView(btn("تحديث", false) { showLog() }, lp(6))
+        col.addView(btn("مسح السجل", false) { Log.clear(this); showLog() }, lp(6))
+        col.addView(btn("رجوع", false) { showHome() }, lp(6))
+        setContentView(sv)
+    }
+
     private fun trace(e: Throwable): String { val sw = java.io.StringWriter(); e.printStackTrace(java.io.PrintWriter(sw)); return sw.toString().take(6000) }
 
     private fun showError(title: String, text: String) {
@@ -140,6 +152,7 @@ class MainActivity : Activity() {
         val (sv, col) = page()
         val title = label("وَقفَة", 34f, true); title.setTextColor(green); title.gravity = Gravity.CENTER
         col.addView(title, lp(0))
+        val verT = label("الإصدار " + (try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Throwable) { "?" }), 12f); verT.gravity = Gravity.CENTER; verT.setTextColor(Color.GRAY); col.addView(verT, lp(2))
         val c1 = card(); status = label("", 16f); c1.addView(status); col.addView(c1, lp(14))
         toggle = btn("") { toggleService() }; col.addView(toggle, lp(10))
 
@@ -170,6 +183,7 @@ class MainActivity : Activity() {
         c3.addView(label("مرات «لاحقًا»: ${store.laterCount}", 15f), lp(6))
         col.addView(c3, lp(12))
         col.addView(btn("⚙ الإعدادات", false) { showSettings() }, lp(16))
+        col.addView(btn("سجل التشخيص", false) { showLog() }, lp(8))
         setContentView(sv); refresh()
     }
 
@@ -427,7 +441,7 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (screen == "settings") { showHome(); return }
+        if (screen == "settings" || screen == "log") { showHome(); return }
         if (screen == "onboarding") { finishOnboarding(); return }
         val now = System.currentTimeMillis()
         if (now - backAt < 2000) finish() else { backAt = now; toast("اضغط مرة أخرى للخروج") }
