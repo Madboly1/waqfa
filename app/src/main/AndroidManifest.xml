@@ -38,6 +38,7 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+        <receiver android:name=".DueReceiver" android:exported="false" />
         <receiver android:name=".WatchdogReceiver" android:exported="false" />
         <service android:name=".MaintenanceJob" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>

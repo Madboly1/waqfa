@@ -26,6 +26,10 @@ class Store(ctx: Context) {
     var pauseDay: String get() = s("pause_day"); set(v) = ps("pause_day", v)
     var lastTick: Long get() = l("last_tick"); set(v) = pl("last_tick", v)
     var lastErr: String get() = s("last_err"); set(v) = ps("last_err", v)
+    var why: String get() = s("why"); set(v) = ps("why", v)
+    var sAt: Long get() = l("s_at"); set(v) = pl("s_at", v)
+    var sActive: Boolean get() = b("s_active", false); set(v) = pb("s_active", v)
+    var overlayUp: Boolean get() = b("overlay_up", false); set(v) = pb("overlay_up", v)
     var onboarded: Boolean get() = b("onboarded", false); set(v) = pb("onboarded", v)
 
     // prayer

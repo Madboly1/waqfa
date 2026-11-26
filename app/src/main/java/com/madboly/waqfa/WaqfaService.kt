@@ -48,10 +48,23 @@ class WaqfaService : Service() {
             Prayer.ensure(store)
             val hold = Prayer.blockedUntil(store)
             store.holdMsg = if (hold != null) "مؤجّل لوقت الصلاة حتى $hold" else ""
+            Background.accrue(this@WaqfaService, false)
+            val call = inCall()
+            val canDraw = Settings.canDrawOverlays(this@WaqfaService)
+            val ready = store.accMs >= store.targetMin * 60000L
+            store.why = when {
+                !active -> "الشاشة مقفلة، العدّاد واقف"
+                overlay != null || bubble != null -> "النافذة ظاهرة الآن"
+                !canDraw -> "ناقص إذن الظهور فوق التطبيقات (فعّله من الإعدادات)"
+                !ready -> ""
+                hold != null -> "مؤجّل لوقت الصلاة حتى $hold"
+                store.pausedToday() -> "موقوف لباقي اليوم (من الإعدادات)"
+                call -> "مؤجّل: النظام في وضع مكالمة أو رنين"
+                else -> ""
+            }
             if (active) {
-                if (overlay == null) store.accMs = store.accMs + d
-                if (overlay == null && hold == null && store.accMs >= store.targetMin * 60000L && !store.pausedToday() && !inCall()) {
-                    if (Settings.canDrawOverlays(this@WaqfaService)) showOverlay() else notifyFallback()
+                if (overlay == null && hold == null && ready && !store.pausedToday() && !call) {
+                    if (canDraw) showOverlay() else notifyFallback()
                 }
             }
             autoBackup(now)
@@ -67,11 +80,17 @@ class WaqfaService : Service() {
         Thread { try { val e = Drive.backup(store); store.backupMsg = e ?: "" } catch (_: Throwable) {} finally { backing = false } }.start()
     }
 
+    private val screenRx = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) { Background.accrue(c, true) }
+    }
+
     override fun onBind(i: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         store = Store(this)
+        store.overlayUp = false
+        try { registerReceiver(screenRx, android.content.IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_USER_PRESENT) }) } catch (_: Throwable) {}
         val ch = NotificationChannel("waqfa", "وَقفَة", NotificationManager.IMPORTANCE_MIN)
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(ch)
     }
@@ -160,7 +179,7 @@ class WaqfaService : Service() {
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT)
         bigView = root
-        try { wm.addView(root, lp); overlay = root; store.lastErr = "" } catch (e: Throwable) { overlay = null; store.lastErr = "overlay: " + e.javaClass.simpleName + " " + (e.message ?: "") }
+        try { wm.addView(root, lp); overlay = root; store.overlayUp = true; store.lastErr = "" } catch (e: Throwable) { overlay = null; store.lastErr = "overlay: " + e.javaClass.simpleName + " " + (e.message ?: "") }
     }
 
     private fun minimize(page: Int) {
@@ -199,12 +218,13 @@ class WaqfaService : Service() {
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         bubble?.let { try { wm.removeView(it) } catch (_: Exception) {} }; bubble = null
         bigView?.let { try { wm.removeView(it) } catch (_: Exception) {} }; bigView = null
-        overlay = null; testMode = false
+        overlay = null; testMode = false; store.overlayUp = false
+        Background.accrue(this, false)
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) { Background.scheduleWatchdog(this); super.onTaskRemoved(rootIntent) }
 
     override fun onDestroy() {
-        h.removeCallbacks(tick); hideOverlay(); super.onDestroy()
+        h.removeCallbacks(tick); try { unregisterReceiver(screenRx) } catch (_: Throwable) {}; hideOverlay(); super.onDestroy()
     }
 }

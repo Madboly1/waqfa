@@ -372,10 +372,18 @@ class MainActivity : Activity() {
         val tgt = store.targetMin
         fun mmss(x: Long) = String.format(Locale.US, "%d:%02d", x / 60, x % 60)
         val age = (System.currentTimeMillis() - store.lastTick) / 1000
-        val svc = if (!on) "متوقفة" else if (store.lastTick > 0 && age < 20) "تعمل ✓" else "مفعّلة (بتشتغل...)"
+        val ticking = store.lastTick > 0 && age < 20
+        val svc = if (!on) "متوقفة" else if (ticking) "تعمل ✓" else "مفعّلة لكن الخدمة لا تعمل"
         val err = if (store.lastErr.isNotEmpty()) "\nآخر خطأ: " + store.lastErr else ""
+        val reasons = ArrayList<String>()
+        if (on && !ticking) reasons.add("الخدمة متوقفة، غالبًا النظام قتلها. افتح التطبيق، وفعّل التشغيل التلقائي واستثناء البطارية")
+        if (on && ticking && store.why.isNotEmpty()) reasons.add(store.why)
+        if (!Settings.canDrawOverlays(this)) reasons.add("ناقص إذن الظهور فوق التطبيقات")
+        if (on && store.prayerOn && !Prayer.loadedToday(store)) reasons.add("مواقيت الصلاة غير محمّلة، " + store.prayerMsg)
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) reasons.add("الإشعارات غير مسموحة")
         val hold = if (on && store.holdMsg.isNotEmpty()) "\n" + store.holdMsg else ""
-        status?.text = svc + err + hold + "\nالعداد: ${mmss(sec)} من ${mmss(tgt * 60L)}\nالصفحة القادمة: ${store.page}"
+        val why = if (reasons.isEmpty()) "" else "\nلماذا لم تظهر النافذة؟\n- " + reasons.joinToString("\n- ")
+        status?.text = svc + err + hold + why + "\nالعداد: ${mmss(sec)} من ${mmss(tgt * 60L)}\nالصفحة القادمة: ${store.page}\nآخر نبضة للخدمة: " + (if (store.lastTick > 0) "$age ث" else "لم تبدأ")
         toggle?.text = if (on) "إيقاف وَقفَة" else "تشغيل وَقفَة"
         if (screen != "settings") return
         presetRow?.let { pr ->
@@ -411,6 +419,7 @@ class MainActivity : Activity() {
         super.onResume()
         if (store.enabled) try { startForegroundService(Intent(this, WaqfaService::class.java)) } catch (_: Exception) {}
         if (screen == "error") return
+        try { Background.accrue(this, false) } catch (_: Throwable) {}
         try { if (screen == "home") showHome() } catch (e: Throwable) { showError("خطأ في الشاشة الرئيسية", trace(e)); return }
         h.post(ticker)
     }

@@ -25,6 +25,8 @@ object Prayer {
     }
     private fun hasDate(st: Store, c: Calendar) = todayMins(st, c) != null
 
+    fun loadedToday(st: Store): Boolean = hasDate(st, Calendar.getInstance())
+
     fun blockedUntil(st: Store): String? {
         if (!st.prayerOn) return null
         val c = Calendar.getInstance()
