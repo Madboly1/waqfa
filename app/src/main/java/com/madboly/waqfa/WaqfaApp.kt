@@ -9,7 +9,7 @@ class WaqfaApp : Application() {
         try {
             val st = Store(this)
             val gap = if (st.lastTick > 0) (System.currentTimeMillis() - st.lastTick) / 60000 else -1
-            Log.i(this, "process started, service last alive " + (if (gap < 0) "never" else "$gap min ago") + ", enabled=" + st.enabled + ", acc=" + st.accMs / 1000 + "s")
+            Log.i(this, "process started on " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + " android " + android.os.Build.VERSION.SDK_INT + ", service last alive " + (if (gap < 0) "never" else "$gap min ago") + ", enabled=" + st.enabled + ", acc=" + st.accMs / 1000 + "s")
         } catch (_: Throwable) {}
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->

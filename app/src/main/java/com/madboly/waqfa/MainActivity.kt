@@ -380,6 +380,13 @@ class MainActivity : Activity() {
 
     private fun permRow(text: String, action: () -> Unit) { perms?.addView(btn(text, false, action), lp(6)) }
 
+    private fun openFirst(vararg comps: Pair<String, String>) {
+        for ((p, c) in comps) {
+            try { startActivity(Intent().setClassName(p, c)); return } catch (_: Throwable) {}
+        }
+        try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) } catch (_: Throwable) {}
+    }
+
     private fun refresh() {
         val on = store.enabled
         val sec = store.accMs / 1000
@@ -431,7 +438,21 @@ class MainActivity : Activity() {
                     try { startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName"))) } catch (_: Throwable) {}
                 }
             }
-            val mf = Build.MANUFACTURER.lowercase()
+            val mf = (Build.MANUFACTURER + " " + Build.BRAND).lowercase()
+            if (mf.contains("infinix") || mf.contains("tecno") || mf.contains("itel") || mf.contains("transsion")) {
+                perms?.addView(label("جهاز إنفينكس (XOS): لازم تفعّل هذه الأشياء عشان النافذة تظهر في الخلفية: (١) التشغيل التلقائي لوَقفَة (مدير الهاتف ثم إدارة التشغيل التلقائي). (٢) إدارة تطبيقات الخلفية أو توفير الطاقة: اختر وَقفَة «بلا قيود» أو «السماح بالتشغيل في الخلفية». (٣) اقفل التطبيق في شاشة التطبيقات الأخيرة (اضغط على البطاقة مطولًا ثم القفل). (٤) تأكد من «العرض فوق التطبيقات الأخرى» و«النوافذ المنبثقة في الخلفية» و«الإشعارات بملء الشاشة» مسموحة. بعد كل تعديل اضغط رجوع وافتح وَقفَة.", 13f), lp(12))
+                permRow("فتح التشغيل التلقائي (مدير الهاتف)") {
+                    openFirst("com.transsion.phonemaster" to "com.cyin.himgr.autostart.AutoStartActivity",
+                        "com.transsion.phonemaster" to "com.cyin.himgr.autostart.view.AutoStartActivity",
+                        "com.itel.autobootmanager" to "com.itel.autobootmanager.activity.AutoBootMgrActivity",
+                        "com.transsion.phonemaster" to "com.cyin.himgr.MainActivity")
+                }
+                permRow("فتح مدير الهاتف (البطارية وتطبيقات الخلفية)") {
+                    openFirst("com.transsion.phonemaster" to "com.cyin.himgr.MainActivity",
+                        "com.transsion.powersaving" to "com.transsion.powersaving.MainActivity")
+                }
+                permRow("فتح صفحة التطبيق (الأذونات والبطارية)") { openFirst() }
+            }
             if (mf.contains("xiaomi") || mf.contains("redmi") || mf.contains("poco")) {
                 perms?.addView(label("جهاز شاومي: لازم تفعّل ثلاثة أشياء عشان النافذة تظهر في الخلفية: (١) التشغيل التلقائي لوَقفَة. (٢) توفير الطاقة لوَقفَة على «بلا قيود». (٣) اقفل التطبيق في شاشة التطبيقات الأخيرة (اسحب البطاقة لأسفل أو اضغط عليها مطولًا ثم القفل).", 13f), lp(12))
                 permRow("فتح صفحة التشغيل التلقائي") {

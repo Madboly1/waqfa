@@ -180,7 +180,7 @@ class WaqfaService : Service() {
         }
         val lp = WindowManager.LayoutParams(
             -1, -1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
             PixelFormat.TRANSLUCENT)
         bigView = root
         try { wm.addView(root, lp); overlay = root; store.overlayUp = true; store.lastErr = ""; Log.i(this, "window shown, page $page"); alertNote(page); checkVisible(root) } catch (e: Throwable) { overlay = null; store.lastErr = "overlay: " + e.javaClass.simpleName + " " + (e.message ?: ""); Log.i(this, "window FAILED: " + store.lastErr) }
@@ -233,14 +233,14 @@ class WaqfaService : Service() {
             }
             true
         }
-        try { wm.addView(t, lp); bubble = t } catch (e: Throwable) { store.lastErr = "bubble: " + e.javaClass.simpleName; try { wm.addView(big, WindowManager.LayoutParams(-1, -1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT)) } catch (_: Exception) {} }
+        try { wm.addView(t, lp); bubble = t } catch (e: Throwable) { store.lastErr = "bubble: " + e.javaClass.simpleName; try { wm.addView(big, WindowManager.LayoutParams(-1, -1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON, PixelFormat.TRANSLUCENT)) } catch (_: Exception) {} }
     }
 
     private fun restore() {
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         bubble?.let { try { wm.removeView(it) } catch (_: Exception) {} }; bubble = null
         val big = bigView ?: return
-        try { wm.addView(big, WindowManager.LayoutParams(-1, -1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT)) } catch (e: Throwable) { store.lastErr = "restore: " + e.javaClass.simpleName }
+        try { wm.addView(big, WindowManager.LayoutParams(-1, -1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON, PixelFormat.TRANSLUCENT)) } catch (e: Throwable) { store.lastErr = "restore: " + e.javaClass.simpleName }
     }
 
     private fun hideOverlay() {

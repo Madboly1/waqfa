@@ -65,7 +65,12 @@ object Background {
         val rem = st.targetMin * 60000L - st.accMs
         val at = System.currentTimeMillis() + (if (rem <= 0) 60000L else rem + 500L)
         var how = "exact"
-        try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, duePi(c)) }
+        try {
+            if (rem > 0) {
+                val show = PendingIntent.getActivity(c, 7, Intent(c, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                am.setAlarmClock(AlarmManager.AlarmClockInfo(at, show), duePi(c)); how = "alarm-clock"
+            } else am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, duePi(c))
+        }
         catch (e: Throwable) { how = "inexact (" + e.javaClass.simpleName + ")"; try { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, duePi(c)) } catch (_: Throwable) { how = "FAILED" } }
         if (Math.abs(at - lastDue) > 5000L) {
             lastDue = at
