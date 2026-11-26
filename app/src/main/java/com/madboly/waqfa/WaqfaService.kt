@@ -94,15 +94,15 @@ class WaqfaService : Service() {
         store.overlayUp = false
         Log.i(this, "service created")
         try { registerReceiver(screenRx, android.content.IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_USER_PRESENT) }) } catch (_: Throwable) {}
-        val ch = NotificationChannel("waqfa", "وَقفَة", NotificationManager.IMPORTANCE_MIN)
+        val ch = NotificationChannel("waqfa2", "وَقفَة", NotificationManager.IMPORTANCE_LOW)
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(ch)
     }
 
     override fun onStartCommand(i: Intent?, f: Int, id: Int): Int {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        val n = Notification.Builder(this, "waqfa")
+        val n = Notification.Builder(this, "waqfa2")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("وَقفَة تعمل")
+            .setContentTitle("وَقفَة تعمل").setContentText("تعدّ وقت الشاشة لورد اليوم")
             .setContentIntent(open).setOngoing(true).build()
         try { startForeground(1, n) } catch (e: Throwable) { store.lastErr = "fgs: " + e.javaClass.simpleName; stopSelf(); return START_NOT_STICKY }
         try { Background.scheduleAll(this) } catch (e: Throwable) { store.lastErr = "sched: " + e.javaClass.simpleName }

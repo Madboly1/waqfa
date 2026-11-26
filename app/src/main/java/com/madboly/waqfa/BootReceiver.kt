@@ -6,6 +6,7 @@ import android.content.Intent
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, i: Intent) {
+        Log.i(c, "receiver: " + (i.action ?: "?"))
         Background.scheduleAll(c)
         Background.startService(c)
     }

@@ -50,13 +50,27 @@ object Background {
 
     private fun duePi(c: Context) = PendingIntent.getBroadcast(c, 6, Intent(c, DueReceiver::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
+    @Volatile private var lastDue = 0L
+    @Volatile private var lastCancelWhy = ""
+
     private fun scheduleDue(c: Context, st: Store, act: Boolean) {
         val am = c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        if (!act || st.overlayUp) { am.cancel(duePi(c)); return }
+        if (!act || st.overlayUp) {
+            am.cancel(duePi(c))
+            val w = if (st.overlayUp) "window is up" else "screen off or locked"
+            if (w != lastCancelWhy) { lastCancelWhy = w; lastDue = 0L; Log.i(c, "due alarm cancelled: $w") }
+            return
+        }
+        lastCancelWhy = ""
         val rem = st.targetMin * 60000L - st.accMs
         val at = System.currentTimeMillis() + (if (rem <= 0) 60000L else rem + 500L)
+        var how = "exact"
         try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, duePi(c)) }
-        catch (e: Throwable) { try { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, duePi(c)) } catch (_: Throwable) {} }
+        catch (e: Throwable) { how = "inexact (" + e.javaClass.simpleName + ")"; try { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, duePi(c)) } catch (_: Throwable) { how = "FAILED" } }
+        if (Math.abs(at - lastDue) > 5000L) {
+            lastDue = at
+            Log.i(c, "due alarm armed $how for " + java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date(at)) + (if (rem <= 0) " (recheck, already past target)" else ""))
+        }
     }
 
     fun scheduleWatchdog(c: Context) {

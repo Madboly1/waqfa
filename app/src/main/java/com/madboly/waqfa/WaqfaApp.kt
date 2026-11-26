@@ -6,6 +6,11 @@ import java.io.File
 class WaqfaApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        try {
+            val st = Store(this)
+            val gap = if (st.lastTick > 0) (System.currentTimeMillis() - st.lastTick) / 60000 else -1
+            Log.i(this, "process started, service last alive " + (if (gap < 0) "never" else "$gap min ago") + ", enabled=" + st.enabled + ", acc=" + st.accMs / 1000 + "s")
+        } catch (_: Throwable) {}
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             try {
