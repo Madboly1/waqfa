@@ -30,6 +30,13 @@ class Store(ctx: Context) {
     var sAt: Long get() = l("s_at"); set(v) = pl("s_at", v)
     var sActive: Boolean get() = b("s_active", false); set(v) = pb("s_active", v)
     var overlayUp: Boolean get() = b("overlay_up", false); set(v) = pb("overlay_up", v)
+    var mode: String get() = s("mode", "quran"); set(v) = ps("mode", v)
+    var altTurn: Int get() = i("alt_turn", 0); set(v) = pi("alt_turn", v)
+    var booksJson: String get() = s("books", "[]"); set(v) = ps("books", v)
+    var curBook: String get() = s("cur_book"); set(v) = ps("cur_book", v)
+    var booksPrayer: Boolean get() = b("books_prayer", false); set(v) = pb("books_prayer", v)
+    var bookPages: Int get() = i("book_pages", 0); set(v) = pi("book_pages", v)
+    var obPage: Int get() = i("ob_page", 0); set(v) = pi("ob_page", v)
     var onboarded: Boolean get() = b("onboarded", false); set(v) = pb("onboarded", v)
 
     // prayer
@@ -89,7 +96,7 @@ class Store(ctx: Context) {
         o.put("v", 1); o.put("target_min", targetMin); o.put("page", page); o.put("snooze_min", snoozeMin)
         o.put("days", daysCsv); o.put("total", totalPages); o.put("later", laterCount); o.put("sum_ms", sumMs); o.put("done_cnt", doneCount)
         o.put("city", city); o.put("country", country); o.put("p_before", pBefore); o.put("p_after", pAfter); o.put("prayer_on", prayerOn)
-        o.put("auto_backup", autoBackup)
+        o.put("auto_backup", autoBackup); o.put("mode", mode); o.put("books_prayer", booksPrayer)
         return o.toString()
     }
     fun importJson(t: String) {
@@ -108,6 +115,8 @@ class Store(ctx: Context) {
         if (o.has("p_after")) pAfter = o.getInt("p_after")
         if (o.has("prayer_on")) prayerOn = o.getBoolean("prayer_on")
         if (o.has("auto_backup")) autoBackup = o.getBoolean("auto_backup")
+        if (o.has("mode")) mode = o.getString("mode")
+        if (o.has("books_prayer")) booksPrayer = o.getBoolean("books_prayer")
         prayerData = ""; prayerTry = 0L
     }
     fun resetAll() { p.edit().clear().apply() }

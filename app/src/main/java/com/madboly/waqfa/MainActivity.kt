@@ -37,7 +37,10 @@ class MainActivity : Activity() {
     private var prayerText: TextView? = null
     private var permSig = ""
     private var backAt = 0L
-    private var obPage = 0
+    private var obPage: Int get() = store.obPage; set(v) { store.obPage = v }
+    private var obRender: (() -> Unit)? = null
+    private var booksBox: LinearLayout? = null
+    private var redrawBooks: (() -> Unit)? = null
     private val green = Color.parseColor("#0F5C4A")
     private val gold = Color.parseColor("#C9A24A")
     private val cream = Color.parseColor("#FBF7EC")
@@ -155,6 +158,15 @@ class MainActivity : Activity() {
         val verT = label("الإصدار " + (try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Throwable) { "?" }), 12f); verT.gravity = Gravity.CENTER; verT.setTextColor(Color.GRAY); col.addView(verT, lp(2))
         val c1 = card(); status = label("", 16f); c1.addView(status); col.addView(c1, lp(14))
         toggle = btn("") { toggleService() }; col.addView(toggle, lp(10))
+        val cb = Library.current(store)
+        if (store.mode != "quran" && cb != null) {
+            val bc = card(); bc.addView(label("الكتاب الحالي", 12f).apply { setTextColor(Color.GRAY) }); bc.addView(label(cb.title, 17f, true))
+            bc.addView(label("صفحة " + cb.cur + " من " + cb.count, 13f).apply { setTextColor(Color.GRAY) })
+            val bar = LinearLayout(this); bar.orientation = LinearLayout.HORIZONTAL
+            bar.addView(View(this).apply { background = GradientDrawable().apply { setColor(gold); cornerRadius = dp(4).toFloat() } }, LinearLayout.LayoutParams(0, dp(8), cb.cur.toFloat().coerceAtLeast(1f)))
+            bar.addView(View(this).apply { background = GradientDrawable().apply { setColor(Color.parseColor("#E9E2CE")); cornerRadius = dp(4).toFloat() } }, LinearLayout.LayoutParams(0, dp(8), (cb.count - cb.cur).toFloat().coerceAtLeast(0f)))
+            bc.addView(bar, lp(8)); col.addView(bc, lp(10))
+        }
 
         val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL
         fun stat(t: String, v: String): LinearLayout {
@@ -181,6 +193,7 @@ class MainActivity : Activity() {
         c3.addView(label("إجمالي الصفحات: ${store.totalPages}", 15f))
         c3.addView(label("متوسط وقت الشاشة قبل الورد: $avg", 15f), lp(6))
         c3.addView(label("مرات «لاحقًا»: ${store.laterCount}", 15f), lp(6))
+        if (store.bookPages > 0) c3.addView(label("منها من الكتب: ${store.bookPages}", 15f), lp(6))
         col.addView(c3, lp(12))
         col.addView(btn("⚙ الإعدادات", false) { showSettings() }, lp(16))
         col.addView(btn("سجل التشخيص", false) { showLog() }, lp(8))
@@ -220,6 +233,47 @@ class MainActivity : Activity() {
             pause = CheckBox(this); pause!!.text = "إيقاف التنبيه لباقي اليوم"
             s.addView(pause, lp(12))
             s.addView(btn("جرّب النافذة الآن", false) { testOverlay() }, lp(8))
+        }
+
+        section(col, "ما الذي يظهر؟", false) { s ->
+            val modeRow = LinearLayout(this); modeRow.orientation = LinearLayout.HORIZONTAL
+            fun drawModes() {
+                modeRow.removeAllViews()
+                for ((t, m) in listOf("القرآن" to "quran", "كتبي" to "books", "بالتناوب" to "alt")) {
+                    modeRow.addView(btn(t, store.mode == m) { store.mode = m; drawModes(); toast("تم الحفظ") }, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
+                }
+            }
+            drawModes(); s.addView(modeRow, lp(4))
+            s.addView(label("بالتناوب: مرة صفحة قرآن ومرة صفحة من كتابك الحالي. لو ما أضفت كتابًا يظهر القرآن.", 12f).apply { setTextColor(Color.GRAY) }, lp(8))
+        }
+
+        section(col, "الكتب", false) { s ->
+            s.addView(label("الملفات من جهازك فقط، تُحفظ على الهاتف ولا تُرفع لأي مكان.", 12f).apply { setTextColor(Color.GRAY) })
+            s.addView(btn("+ إضافة كتاب (PDF / EPUB / TXT)", true) {
+                startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+                    .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/pdf", "application/epub+zip", "text/plain")), 13)
+            }, lp(8))
+            val box = LinearLayout(this); box.orientation = LinearLayout.VERTICAL
+            fun drawBooks() {
+                box.removeAllViews()
+                val cur = Library.current(store)
+                for (b in Library.list(store)) {
+                    val c = card(); c.addView(label((if (cur?.id == b.id) "● " else "") + b.title, 15f, true))
+                    c.addView(label(b.type.uppercase() + " · صفحة " + b.cur + " من " + b.count, 12f).apply { setTextColor(Color.GRAY) })
+                    val r = LinearLayout(this); r.orientation = LinearLayout.HORIZONTAL
+                    r.addView(btn("اجعله الحالي", false) { Library.setCurrent(store, b.id); drawBooks() }, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(0, 0, dp(3), 0) })
+                    val pe = numField("صفحة", b.cur.toString())
+                    r.addView(pe, LinearLayout.LayoutParams(dp(70), -2))
+                    r.addView(btn("حفظ", false) { val v = num(pe.text.toString()); if (v != null && v in 1..b.count) { Library.setPage(store, b.id, v); toast("تم الحفظ: صفحة $v"); drawBooks() } else toast("اكتب رقم من 1 إلى ${b.count}") })
+                    r.addView(btn("حذف", false) { Library.delete(this, store, b.id); drawBooks() }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(dp(3), 0, 0, 0) })
+                    c.addView(r, lp(6)); box.addView(c, lp(8))
+                }
+                if (box.childCount == 0) box.addView(label("لا توجد كتب بعد", 14f))
+            }
+            drawBooks(); s.addView(box, lp(6)); booksBox = box; redrawBooks = { drawBooks() }
+            val bp = CheckBox(this); bp.text = "تجنّب وقت الصلاة مع صفحات الكتب"; bp.isChecked = store.booksPrayer
+            bp.setOnCheckedChangeListener { _, o -> store.booksPrayer = o }
+            s.addView(bp, lp(10))
         }
 
         section(col, "أوقات الصلاة", false) { s ->
@@ -294,6 +348,11 @@ class MainActivity : Activity() {
         super.onActivityResult(rq, rs, data)
         val u = data?.data ?: return
         if (rs != RESULT_OK) return
+        if (rq == 13) {
+            toast("جاري إضافة الكتاب...")
+            Thread { try { val e = Library.add(this, store, u); runOnUiThread { toast(e ?: "تمت إضافة الكتاب"); if (screen == "settings") redrawBooks?.invoke() } } catch (_: Throwable) {} }.start()
+            return
+        }
         try {
             if (rq == 11) { contentResolver.openOutputStream(u)?.use { it.write(store.exportJson().toByteArray()) }; toast("تم التصدير") }
             if (rq == 12) { val t = contentResolver.openInputStream(u)!!.bufferedReader().use { it.readText() }; store.importJson(t); toast("تم الاستيراد"); showSettings() }
@@ -328,9 +387,11 @@ class MainActivity : Activity() {
                 }
                 2 -> {
                     big.text = "🔓"; ttl.text = "الأذونات"; body.text = "تحتاج وَقفَة هذه الأذونات لتعمل في الخلفية."
-                    extra.addView(btn("الظهور فوق التطبيقات (مطلوب)", false) { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }, lp(6))
-                    extra.addView(btn("استثناء من توفير البطارية", false) { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }, lp(6))
-                    extra.addView(label("في شاومي: فعّل أيضًا «التشغيل التلقائي» للتطبيق من إعدادات التطبيقات.", 13f).apply { setTextColor(Color.GRAY); gravity = Gravity.CENTER }, lp(8))
+                    if (Settings.canDrawOverlays(this)) extra.addView(label("✓ الظهور فوق التطبيقات: مسموح", 15f).apply { setTextColor(green) }, lp(6))
+                    else extra.addView(btn("الظهور فوق التطبيقات (مطلوب)", false) { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }, lp(6))
+                    if ((getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)) extra.addView(label("✓ استثناء البطارية: مسموح", 15f).apply { setTextColor(green) }, lp(6))
+                    else extra.addView(btn("استثناء من توفير البطارية", false) { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }, lp(6))
+                    extra.addView(label("فعّل أيضًا «التشغيل التلقائي» للتطبيق من إعدادات الهاتف (شاومي أو إنفينكس أو غيرها)، وبعد التعديل ارجع لوَقفَة.", 13f).apply { setTextColor(Color.GRAY); gravity = Gravity.CENTER }, lp(8))
                 }
                 else -> {
                     big.text = "☁"; ttl.text = "نسخة احتياطية"; body.text = "سجّل الدخول بجوجل لحفظ إعداداتك وإحصائياتك في درايف تلقائيًا. يمكنك تأجيل هذا."
@@ -340,6 +401,7 @@ class MainActivity : Activity() {
             next.text = if (obPage == 3) "ابدأ" else "التالي"
         }
         next.setOnClickListener { if (obPage < 3) { obPage++; render() } else finishOnboarding() }
+        obRender = { render() }
         render(); setContentView(sv)
     }
     private fun finishOnboarding() { store.onboarded = true; showHome() }
@@ -380,6 +442,11 @@ class MainActivity : Activity() {
 
     private fun permRow(text: String, action: () -> Unit) { perms?.addView(btn(text, false, action), lp(6)) }
 
+    private fun nextLabel(): String {
+        val b = if (Library.nextIsBook(store)) Library.current(store) else null
+        return if (b != null) "القادم: " + b.title + " · صفحة " + b.cur + " من " + b.count else "الصفحة القادمة: " + store.page
+    }
+
     private fun openFirst(vararg comps: Pair<String, String>) {
         for ((p, c) in comps) {
             try { startActivity(Intent().setClassName(p, c)); return } catch (_: Throwable) {}
@@ -404,7 +471,7 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) reasons.add("الإشعارات غير مسموحة")
         val hold = if (on && store.holdMsg.isNotEmpty()) "\n" + store.holdMsg else ""
         val why = if (reasons.isEmpty()) "" else "\nلماذا لم تظهر النافذة؟\n- " + reasons.joinToString("\n- ")
-        status?.text = svc + err + hold + why + "\nالعداد: ${mmss(sec)} من ${mmss(tgt * 60L)}\nالصفحة القادمة: ${store.page}\nآخر نبضة للخدمة: " + (if (store.lastTick > 0) "$age ث" else "لم تبدأ")
+        status?.text = svc + err + hold + why + "\nالعداد: ${mmss(sec)} من ${mmss(tgt * 60L)}\n${nextLabel()}\nآخر نبضة للخدمة: " + (if (store.lastTick > 0) "$age ث" else "لم تبدأ")
         toggle?.text = if (on) "إيقاف وَقفَة" else "تشغيل وَقفَة"
         if (screen != "settings") return
         presetRow?.let { pr ->
@@ -418,20 +485,24 @@ class MainActivity : Activity() {
         pageField?.let { f -> if (!f.hasFocus()) { val t = store.page.toString(); if (f.text.toString() != t) f.setText(t) } }
         pause?.let { p -> p.setOnCheckedChangeListener(null); p.isChecked = store.pausedToday(); p.setOnCheckedChangeListener { _, o -> store.setPausedToday(o) } }
         val pm = getSystemService(POWER_SERVICE) as PowerManager
-        val sig = "" + Settings.canDrawOverlays(this) + pm.isIgnoringBatteryOptimizations(packageName) + packageManager.canRequestPackageInstalls()
+        val sig = "" + Settings.canDrawOverlays(this) + pm.isIgnoringBatteryOptimizations(packageName) + packageManager.canRequestPackageInstalls() + (Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED)
         if (sig != permSig) {
             permSig = sig
             perms?.removeAllViews()
-            if (!Settings.canDrawOverlays(this)) permRow("السماح بالظهور فوق التطبيقات (مطلوب)") {
+            fun okRow(t: String) { perms?.addView(label("✓ $t", 15f).apply { setTextColor(green) }, lp(6)) }
+            if (Settings.canDrawOverlays(this)) okRow("الظهور فوق التطبيقات: مسموح") else permRow("السماح بالظهور فوق التطبيقات (مطلوب)") {
                 startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
             }
-            if (!pm.isIgnoringBatteryOptimizations(packageName)) permRow("استثناء من توفير البطارية (يُنصح به)") {
+            if (pm.isIgnoringBatteryOptimizations(packageName)) okRow("استثناء توفير البطارية: مسموح") else permRow("استثناء من توفير البطارية (يُنصح به)") {
                 startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
             }
-            if (!packageManager.canRequestPackageInstalls()) permRow("السماح بتثبيت التحديثات من التطبيق") {
+            if (packageManager.canRequestPackageInstalls()) okRow("تثبيت التحديثات من التطبيق: مسموح") else permRow("السماح بتثبيت التحديثات من التطبيق") {
                 startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
             }
-            if (perms?.childCount == 0) perms?.addView(label("كل الأذونات تمام ✓", 14f))
+            if (Build.VERSION.SDK_INT >= 33) {
+                if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) okRow("الإشعارات: مسموحة")
+                else permRow("السماح بالإشعارات") { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1) }
+            }
             if (Build.VERSION.SDK_INT >= 34) {
                 val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
                 if (!nm.canUseFullScreenIntent()) permRow("السماح بالإشعارات بملء الشاشة") {
@@ -476,6 +547,7 @@ class MainActivity : Activity() {
         super.onResume()
         if (store.enabled) try { startForegroundService(Intent(this, WaqfaService::class.java)) } catch (_: Exception) {}
         if (screen == "error") return
+        if (screen == "onboarding") try { obRender?.invoke() } catch (_: Throwable) {}
         try { Background.accrue(this, false) } catch (_: Throwable) {}
         try { if (screen == "home") showHome() } catch (e: Throwable) { showError("خطأ في الشاشة الرئيسية", trace(e)); return }
         h.post(ticker)

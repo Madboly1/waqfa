@@ -21,6 +21,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.ScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -47,7 +48,7 @@ class WaqfaService : Service() {
             val km = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
             val active = pm.isInteractive && !km.isKeyguardLocked
             Prayer.ensure(store)
-            val hold = Prayer.blockedUntil(store)
+            val hold = if (Library.nextIsBook(store) && !store.booksPrayer) null else Prayer.blockedUntil(store)
             store.holdMsg = if (hold != null) "مؤجّل لوقت الصلاة حتى $hold" else ""
             Background.accrue(this@WaqfaService, false)
             val call = inCall()
@@ -133,7 +134,8 @@ class WaqfaService : Service() {
     private fun showOverlay() {
         if (!Settings.canDrawOverlays(this)) { store.lastErr = "overlay permission missing"; return }
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        val page = store.page
+        val book = if (Library.nextIsBook(store)) Library.current(store) else null
+        val page = if (book != null) book.cur else store.page
         val root = FrameLayout(this)
         root.setBackgroundColor(Color.argb(170, 0, 0, 0))
         root.layoutDirection = View.LAYOUT_DIRECTION_RTL
@@ -142,7 +144,7 @@ class WaqfaService : Service() {
         card.background = GradientDrawable().apply { setColor(Color.parseColor("#FBF7EC")); cornerRadius = dp(22).toFloat() }
         card.clipToOutline = true
         val hd = TextView(this)
-        hd.text = "وردك الآن  ·  صفحة $page"
+        hd.text = if (book != null) "وردك الآن  ·  " + book.title + "  ·  صفحة $page من " + book.count else "وردك الآن  ·  صفحة $page"
         hd.setTextColor(Color.WHITE); hd.textSize = 17f; hd.gravity = Gravity.CENTER
         hd.setBackgroundColor(Color.parseColor("#0F5C4A"))
         hd.setPadding(dp(16), dp(12), dp(16), dp(12))
@@ -150,12 +152,24 @@ class WaqfaService : Service() {
         val img = ImageView(this)
         img.scaleType = ImageView.ScaleType.FIT_CENTER
         img.setPadding(dp(6), dp(6), dp(6), dp(6))
-        try {
-            val name = String.format(java.util.Locale.US, "pages/p%03d.webp", page)
-            val bmp = assets.open(name).use { BitmapFactory.decodeStream(it) }
-            if (bmp == null) store.lastErr = "page decode failed: $page" else img.setImageBitmap(bmp)
-        } catch (e: Throwable) { store.lastErr = "page: " + e.javaClass.simpleName + " " + (e.message ?: "") }
-        card.addView(img, LinearLayout.LayoutParams(-1, 0, 1f))
+        if (book != null && book.type != "pdf") {
+            val tv = TextView(this); tv.text = Library.textPage(this, book, page); tv.textSize = 18f; tv.setTextColor(Color.parseColor("#222222"))
+            tv.setLineSpacing(0f, 1.25f); tv.setPadding(dp(18), dp(14), dp(18), dp(14)); tv.textDirection = View.TEXT_DIRECTION_FIRST_STRONG
+            val sc = ScrollView(this); sc.addView(tv)
+            card.addView(sc, LinearLayout.LayoutParams(-1, 0, 1f))
+        } else {
+            try {
+                if (book != null) {
+                    val bmp = Library.pdfPage(this, book, page, resources.displayMetrics.widthPixels)
+                    if (bmp == null) store.lastErr = "pdf page failed: $page" else img.setImageBitmap(bmp)
+                } else {
+                    val name = String.format(java.util.Locale.US, "pages/p%03d.webp", page)
+                    val bmp = assets.open(name).use { BitmapFactory.decodeStream(it) }
+                    if (bmp == null) store.lastErr = "page decode failed: $page" else img.setImageBitmap(bmp)
+                }
+            } catch (e: Throwable) { store.lastErr = "page: " + e.javaClass.simpleName + " " + (e.message ?: "") }
+            card.addView(img, LinearLayout.LayoutParams(-1, 0, 1f))
+        }
         val row = LinearLayout(this)
         row.orientation = LinearLayout.HORIZONTAL
         row.setPadding(dp(10), dp(8), dp(10), dp(10))
@@ -173,7 +187,12 @@ class WaqfaService : Service() {
         root.addView(mn, FrameLayout.LayoutParams(dp(38), dp(38)).apply { gravity = Gravity.TOP or Gravity.RIGHT; setMargins(dp(22), dp(46), dp(22), 0) })
         mn.setOnClickListener { minimize(page) }
         done.setOnClickListener {
-            Log.i(this, "done pressed"); if (!testMode) { store.recordDone(store.accMs); store.page = page + 1; store.accMs = 0L }; hideOverlay()
+            Log.i(this, "done pressed"); if (!testMode) {
+                store.recordDone(store.accMs)
+                if (book != null) { Library.advance(store, book.id); store.bookPages = store.bookPages + 1 } else store.page = page + 1
+                if (store.mode == "alt" && Library.current(store) != null) store.altTurn = 1 - store.altTurn
+                store.accMs = 0L
+            }; hideOverlay()
         }
         later.setOnClickListener {
             Log.i(this, "later pressed"); if (!testMode) { store.laterCount = store.laterCount + 1; store.accMs = (store.targetMin - store.snoozeMin).coerceAtLeast(0) * 60000L }; hideOverlay()
