@@ -64,7 +64,7 @@ class WaqfaService : Service() {
         if (now - store.lastBackupTry < 3600 * 1000L) return
         store.lastBackupTry = now
         backing = true
-        Thread { try { val e = Drive.backup(store); store.backupMsg = e ?: "" } finally { backing = false } }.start()
+        Thread { try { val e = Drive.backup(store); store.backupMsg = e ?: "" } catch (_: Throwable) {} finally { backing = false } }.start()
     }
 
     override fun onBind(i: Intent?): IBinder? = null
@@ -82,8 +82,8 @@ class WaqfaService : Service() {
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("وَقفَة تعمل")
             .setContentIntent(open).setOngoing(true).build()
-        startForeground(1, n)
-        Background.scheduleAll(this)
+        try { startForeground(1, n) } catch (e: Throwable) { store.lastErr = "fgs: " + e.javaClass.simpleName; stopSelf(); return START_NOT_STICKY }
+        try { Background.scheduleAll(this) } catch (e: Throwable) { store.lastErr = "sched: " + e.javaClass.simpleName }
         if (i?.getBooleanExtra("test", false) == true) { if (overlay == null) { testMode = true; showOverlay() } }
         last = System.currentTimeMillis()
         h.removeCallbacks(tick); h.post(tick)

@@ -84,11 +84,37 @@ class MainActivity : Activity() {
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         store = Store(this)
-        Background.scheduleAll(this)
-        handleIntent(intent)
-        if (!store.onboarded) showOnboarding() else showHome()
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+        val cf = java.io.File(filesDir, "crash.txt")
+        if (cf.exists()) { val t = try { cf.readText() } catch (_: Throwable) { "?" }; showError("آخر مرة توقف التطبيق بسبب خطأ", t); return }
+        try {
+            try { Background.scheduleAll(this) } catch (e: Throwable) { store.lastErr = "sched: " + e.javaClass.simpleName }
+            try { handleIntent(intent) } catch (e: Throwable) { store.lastErr = "intent: " + e.javaClass.simpleName }
+            if (!store.onboarded) showOnboarding() else showHome()
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+        } catch (e: Throwable) { showError("خطأ عند الفتح", trace(e)) }
+    }
+
+    private fun trace(e: Throwable): String { val sw = java.io.StringWriter(); e.printStackTrace(java.io.PrintWriter(sw)); return sw.toString().take(6000) }
+
+    private fun showError(title: String, text: String) {
+        screen = "error"
+        val sv = ScrollView(this); sv.setBackgroundColor(cream)
+        val col = LinearLayout(this); col.orientation = LinearLayout.VERTICAL; col.setPadding(dp(20), dp(36), dp(20), dp(28)); sv.addView(col)
+        col.addView(TextView(this).apply { this.text = title; textSize = 20f; setTextColor(Color.parseColor("#9B1C1C")) })
+        col.addView(TextView(this).apply { this.text = text; textSize = 11f; setTextIsSelectable(true); setTextColor(Color.parseColor("#222222")); setPadding(0, dp(12), 0, dp(12)) })
+        col.addView(btn("نسخ الخطأ") {
+            try { (getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("waqfa", text)); toast("تم النسخ") } catch (_: Throwable) {}
+        }, lp(6))
+        col.addView(btn("متابعة", false) {
+            try { java.io.File(filesDir, "crash.txt").delete() } catch (_: Throwable) {}
+            try { recreate() } catch (_: Throwable) {}
+        }, lp(8))
+        col.addView(btn("إعادة ضبط الإعدادات ثم متابعة", false) {
+            try { store.resetAll(); java.io.File(filesDir, "crash.txt").delete() } catch (_: Throwable) {}
+            try { recreate() } catch (_: Throwable) {}
+        }, lp(8))
+        setContentView(sv)
     }
 
     override fun onNewIntent(i: Intent) { super.onNewIntent(i); setIntent(i); handleIntent(i) }
@@ -100,12 +126,12 @@ class MainActivity : Activity() {
         val code = d.getQueryParameter("code")
         if (code == null) { toast("تم إلغاء تسجيل الدخول"); return }
         toast("جاري تسجيل الدخول...")
-        Thread {
+        Thread { try {
             val err = Drive.exchange(store, code)
             var msg = err ?: "تم تسجيل الدخول"
             if (err == null) { val e2 = Drive.backup(store); store.backupMsg = e2 ?: ""; if (e2 != null) msg = e2 }
             runOnUiThread { toast(msg); if (screen == "settings") updateBackupViews() }
-        }.start()
+        } catch (_: Throwable) {} }.start()
     }
 
     // ---------------- Home ----------------
@@ -201,7 +227,7 @@ class MainActivity : Activity() {
                 num(bE.text.toString())?.let { store.pBefore = it }; num(aE.text.toString())?.let { store.pAfter = it }
                 bE.setText(store.pBefore.toString()); aE.setText(store.pAfter.toString())
                 prayerText?.text = "جاري التحميل..."
-                Thread { val ok = Prayer.fetchNow(store); runOnUiThread { prayerText?.text = store.prayerMsg; toast(if (ok) "تم" else "فشل التحميل") } }.start()
+                Thread { try { val ok = Prayer.fetchNow(store); runOnUiThread { prayerText?.text = store.prayerMsg; toast(if (ok) "تم" else "فشل التحميل") } } catch (_: Throwable) {} }.start()
             }, lp(8))
         }
 
@@ -213,10 +239,10 @@ class MainActivity : Activity() {
             s.addView(au, lp(8))
             backupText = label("", 13f); s.addView(backupText, lp(4))
             s.addView(btn("نسخ الآن", false) {
-                toast("جاري النسخ..."); Thread { val e = Drive.backup(store); store.backupMsg = e ?: ""; runOnUiThread { toast(e ?: "تم النسخ"); updateBackupViews() } }.start()
+                toast("جاري النسخ..."); Thread { try { val e = Drive.backup(store); store.backupMsg = e ?: ""; runOnUiThread { toast(e ?: "تم النسخ"); updateBackupViews() } } catch (_: Throwable) {} }.start()
             }, lp(8))
             s.addView(btn("استعادة من درايف", false) {
-                toast("جاري الاستعادة..."); Thread { val e = Drive.restore(store); runOnUiThread { toast(e ?: "تمت الاستعادة"); if (e == null) showSettings() } }.start()
+                toast("جاري الاستعادة..."); Thread { try { val e = Drive.restore(store); runOnUiThread { toast(e ?: "تمت الاستعادة"); if (e == null) showSettings() } } catch (_: Throwable) {} }.start()
             }, lp(6))
             s.addView(btn("تسجيل الخروج", false) { store.refreshToken = ""; store.email = ""; updateBackupViews() }, lp(6))
             s.addView(label("نسخة محلية", 14f, true), lp(14))
@@ -289,7 +315,7 @@ class MainActivity : Activity() {
                 2 -> {
                     big.text = "🔓"; ttl.text = "الأذونات"; body.text = "تحتاج وَقفَة هذه الأذونات لتعمل في الخلفية."
                     extra.addView(btn("الظهور فوق التطبيقات (مطلوب)", false) { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }, lp(6))
-                    extra.addView(btn("استثناء من توفير البطارية", false) { startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))) }, lp(6))
+                    extra.addView(btn("استثناء من توفير البطارية", false) { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }, lp(6))
                     extra.addView(label("في شاومي: فعّل أيضًا «التشغيل التلقائي» للتطبيق من إعدادات التطبيقات.", 13f).apply { setTextColor(Color.GRAY); gravity = Gravity.CENTER }, lp(8))
                 }
                 else -> {
@@ -371,7 +397,7 @@ class MainActivity : Activity() {
                 startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
             }
             if (!pm.isIgnoringBatteryOptimizations(packageName)) permRow("استثناء من توفير البطارية (يُنصح به)") {
-                startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
             }
             if (!packageManager.canRequestPackageInstalls()) permRow("السماح بتثبيت التحديثات من التطبيق") {
                 startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
@@ -380,11 +406,12 @@ class MainActivity : Activity() {
         }
     }
 
-    private val ticker = object : Runnable { override fun run() { refresh(); h.postDelayed(this, 1000) } }
+    private val ticker = object : Runnable { override fun run() { try { refresh() } catch (_: Throwable) {}; h.postDelayed(this, 1000) } }
     override fun onResume() {
         super.onResume()
         if (store.enabled) try { startForegroundService(Intent(this, WaqfaService::class.java)) } catch (_: Exception) {}
-        if (screen == "home") showHome()
+        if (screen == "error") return
+        try { if (screen == "home") showHome() } catch (e: Throwable) { showError("خطأ في الشاشة الرئيسية", trace(e)); return }
         h.post(ticker)
     }
     override fun onPause() { h.removeCallbacks(ticker); super.onPause() }

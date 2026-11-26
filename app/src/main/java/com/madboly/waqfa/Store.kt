@@ -9,13 +9,13 @@ import java.util.Locale
 
 class Store(ctx: Context) {
     private val p = ctx.applicationContext.getSharedPreferences("waqfa", Context.MODE_PRIVATE)
-    private fun s(k: String, d: String = "") = p.getString(k, d) ?: d
+    private fun s(k: String, d: String = ""): String = try { p.getString(k, d) ?: d } catch (_: Throwable) { d }
     private fun ps(k: String, v: String) { p.edit().putString(k, v).apply() }
-    private fun i(k: String, d: Int) = p.getInt(k, d)
+    private fun i(k: String, d: Int): Int = try { p.getInt(k, d) } catch (_: Throwable) { d }
     private fun pi(k: String, v: Int) { p.edit().putInt(k, v).apply() }
-    private fun l(k: String, d: Long = 0L) = p.getLong(k, d)
+    private fun l(k: String, d: Long = 0L): Long = try { p.getLong(k, d) } catch (_: Throwable) { try { p.getInt(k, d.toInt()).toLong() } catch (_: Throwable) { d } }
     private fun pl(k: String, v: Long) { p.edit().putLong(k, v).apply() }
-    private fun b(k: String, d: Boolean) = p.getBoolean(k, d)
+    private fun b(k: String, d: Boolean): Boolean = try { p.getBoolean(k, d) } catch (_: Throwable) { d }
     private fun pb(k: String, v: Boolean) { p.edit().putBoolean(k, v).apply() }
 
     var enabled: Boolean get() = b("enabled", false); set(v) = pb("enabled", v)
@@ -106,4 +106,5 @@ class Store(ctx: Context) {
         if (o.has("auto_backup")) autoBackup = o.getBoolean("auto_backup")
         prayerData = ""; prayerTry = 0L
     }
+    fun resetAll() { p.edit().clear().apply() }
 }

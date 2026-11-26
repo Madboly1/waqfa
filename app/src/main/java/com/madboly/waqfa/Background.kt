@@ -19,13 +19,13 @@ object Background {
     }
 
     fun scheduleAll(c: Context) {
-        val js = c.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
+        try { val js = c.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
         if (js.getPendingJob(77) == null) {
             js.schedule(JobInfo.Builder(77, ComponentName(c, MaintenanceJob::class.java))
                 .setPeriodic(6 * 3600 * 1000L).setPersisted(true)
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).build())
-        }
-        scheduleWatchdog(c)
+        } } catch (_: Throwable) {}
+        try { scheduleWatchdog(c) } catch (_: Throwable) {}
     }
 
     fun scheduleWatchdog(c: Context) {
@@ -52,7 +52,7 @@ object Background {
 class MaintenanceJob : JobService() {
     override fun onStartJob(p: JobParameters): Boolean {
         Background.startService(this)
-        Thread { try { Background.maintain(this) } finally { jobFinished(p, false) } }.start()
+        Thread { try { Background.maintain(this) } catch (_: Throwable) {} finally { jobFinished(p, false) } }.start()
         return true
     }
     override fun onStopJob(p: JobParameters) = true
