@@ -20,7 +20,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="com.googleusercontent.apps.509805634059-c70i9tl81c49qeum9jaap6j7obin3o4a" />
+                <data android:scheme="com.googleusercontent.apps.965121228201-9sdos9bh6tf7tdkd79o42fmsfpvrvgai" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

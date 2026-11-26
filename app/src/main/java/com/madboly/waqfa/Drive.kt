@@ -9,8 +9,8 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 
 object Drive {
-    private const val CID = "509805634059-c70i9tl81c49qeum9jaap6j7obin3o4a.apps.googleusercontent.com"
-    const val SCHEME = "com.googleusercontent.apps.509805634059-c70i9tl81c49qeum9jaap6j7obin3o4a"
+    private const val CID = "965121228201-9sdos9bh6tf7tdkd79o42fmsfpvrvgai.apps.googleusercontent.com"
+    const val SCHEME = "com.googleusercontent.apps.965121228201-9sdos9bh6tf7tdkd79o42fmsfpvrvgai"
     private const val REDIR = "$SCHEME:/oauth2redirect"
     private const val FILE = "waqfa-backup.json"
 
