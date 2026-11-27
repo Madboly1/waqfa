@@ -9,6 +9,7 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -140,18 +141,23 @@ class WaqfaService : Service() {
         val book = if (Library.nextIsBook(store)) Library.current(store) else null
         val page = if (book != null) book.cur else store.page
         val root = FrameLayout(this)
-        root.setBackgroundColor(Color.argb(170, 0, 0, 0))
+        root.setBackgroundColor(Color.argb(if (Build.VERSION.SDK_INT >= 31) 60 else 150, 0, 0, 0))
         root.layoutDirection = View.LAYOUT_DIRECTION_RTL
+        fun glass(fill1: String, fill2: String, stroke: String, r: Int) = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor(fill1), Color.parseColor(fill2))).apply { cornerRadius = dp(r).toFloat(); setStroke(dp(1), Color.parseColor(stroke)) }
         val card = LinearLayout(this)
         card.orientation = LinearLayout.VERTICAL
-        card.background = GradientDrawable().apply { setColor(Color.parseColor("#FBF7EC")); cornerRadius = dp(22).toFloat() }
+        card.background = glass("#4DFFFFFF", "#14FFFFFF", "#73FFFFFF", 34)
         card.clipToOutline = true
-        val hd = TextView(this)
-        hd.text = if (book != null) "وردك الآن  ·  " + book.title + "  ·  صفحة $page من " + book.count else "وردك الآن  ·  صفحة $page"
-        hd.setTextColor(Color.WHITE); hd.textSize = 17f; hd.gravity = Gravity.CENTER
-        hd.setBackgroundColor(Color.parseColor("#0F5C4A"))
-        hd.setPadding(dp(16), dp(12), dp(16), dp(12))
+        card.elevation = dp(12).toFloat()
+        val hd = LinearLayout(this); hd.orientation = LinearLayout.VERTICAL; hd.setPadding(dp(22), dp(18), dp(70), dp(6))
+        val ht = TextView(this); ht.text = "وردك الآن"; ht.setTextColor(Color.WHITE); ht.textSize = 19f; ht.typeface = android.graphics.Typeface.DEFAULT_BOLD; ht.setShadowLayer(6f, 0f, 1f, Color.argb(110, 0, 0, 0))
+        val hs = TextView(this); hs.setTextColor(Color.argb(210, 255, 255, 255)); hs.textSize = 13f
+        hs.text = if (book != null) book.title + "  ·  صفحة $page من " + book.count else "صفحة $page" + Wird.surahName(page).let { if (it.isEmpty()) "" else "  ·  $it" }
+        hd.addView(ht); hd.addView(hs)
         card.addView(hd, LinearLayout.LayoutParams(-1, -2))
+        val panel = FrameLayout(this)
+        panel.background = GradientDrawable().apply { setColor(Color.parseColor("#FBF7EC")); cornerRadius = dp(22).toFloat() }
+        panel.clipToOutline = true; panel.elevation = dp(4).toFloat()
         val img = ImageView(this)
         img.scaleType = ImageView.ScaleType.FIT_CENTER
         img.setPadding(dp(6), dp(6), dp(6), dp(6))
@@ -159,7 +165,7 @@ class WaqfaService : Service() {
             val tv = TextView(this); tv.text = "..."; Library.async({ Library.textPage(this, book, page) }) { r -> tv.text = r ?: "" }; tv.textSize = 18f; tv.setTextColor(Color.parseColor("#222222"))
             tv.setLineSpacing(0f, 1.25f); tv.setPadding(dp(18), dp(14), dp(18), dp(14)); tv.textDirection = View.TEXT_DIRECTION_FIRST_STRONG
             val sc = ScrollView(this); sc.addView(tv)
-            card.addView(sc, LinearLayout.LayoutParams(-1, 0, 1f))
+            panel.addView(sc, FrameLayout.LayoutParams(-1, -1))
         } else {
             try {
                 if (book != null) {
@@ -170,23 +176,25 @@ class WaqfaService : Service() {
                     if (bmp == null) store.lastErr = "page decode failed: $page" else img.setImageBitmap(bmp)
                 }
             } catch (e: Throwable) { store.lastErr = "page: " + e.javaClass.simpleName + " " + (e.message ?: "") }
-            card.addView(img, LinearLayout.LayoutParams(-1, 0, 1f))
+            panel.addView(img, FrameLayout.LayoutParams(-1, -1))
         }
+        card.addView(panel, LinearLayout.LayoutParams(-1, 0, 1f).apply { setMargins(dp(16), dp(10), dp(16), dp(10)) })
         val row = LinearLayout(this)
         row.orientation = LinearLayout.HORIZONTAL
-        row.setPadding(dp(10), dp(8), dp(10), dp(10))
-        val done = Button(this); done.text = "قرأت وردي"
+        row.setPadding(dp(16), dp(4), dp(16), dp(20))
+        val done = Button(this); done.text = "قرأت وردي"; done.isAllCaps = false; done.typeface = android.graphics.Typeface.DEFAULT_BOLD; done.textSize = 17f
         done.setTextColor(Color.WHITE)
-        done.background = GradientDrawable().apply { setColor(Color.parseColor("#0F5C4A")); cornerRadius = dp(12).toFloat() }
-        val later = Button(this); later.text = "لاحقًا"
-        later.background = GradientDrawable().apply { setColor(Color.parseColor("#DDD5BF")); cornerRadius = dp(12).toFloat() }
-        row.addView(done, LinearLayout.LayoutParams(0, dp(48), 2f).apply { setMargins(dp(4), 0, dp(4), 0) })
-        row.addView(later, LinearLayout.LayoutParams(0, dp(48), 1f).apply { setMargins(dp(4), 0, dp(4), 0) })
+        done.background = glass("#D93CDCAA", "#E60F785F", "#8CFFFFFF", 27)
+        val later = Button(this); later.text = "لاحقًا"; later.isAllCaps = false; later.typeface = android.graphics.Typeface.DEFAULT_BOLD; later.textSize = 16f
+        later.setTextColor(Color.WHITE)
+        later.background = glass("#2EFFFFFF", "#2EFFFFFF", "#73FFFFFF", 27)
+        row.addView(done, LinearLayout.LayoutParams(0, dp(54), 2f).apply { setMargins(dp(6), 0, dp(6), 0) })
+        row.addView(later, LinearLayout.LayoutParams(0, dp(54), 1f).apply { setMargins(dp(6), 0, dp(6), 0) })
         card.addView(row, LinearLayout.LayoutParams(-1, -2))
-        root.addView(card, FrameLayout.LayoutParams(-1, -1).apply { setMargins(dp(14), dp(40), dp(14), dp(40)); gravity = Gravity.CENTER })
-        val mn = TextView(this); mn.text = "\u2013"; mn.textSize = 24f; mn.gravity = Gravity.CENTER; mn.setTextColor(Color.WHITE)
-        mn.background = GradientDrawable().apply { setColor(Color.parseColor("#C9A24A")); shape = GradientDrawable.OVAL }
-        root.addView(mn, FrameLayout.LayoutParams(dp(38), dp(38)).apply { gravity = Gravity.TOP or Gravity.RIGHT; setMargins(dp(22), dp(46), dp(22), 0) })
+        root.addView(card, FrameLayout.LayoutParams(-1, -1).apply { setMargins(dp(16), dp(46), dp(16), dp(46)); gravity = Gravity.CENTER })
+        val mn = TextView(this); mn.text = "\u23F8"; mn.textSize = 15f; mn.gravity = Gravity.CENTER; mn.setTextColor(Color.WHITE)
+        mn.background = GradientDrawable().apply { setColor(Color.parseColor("#38FFFFFF")); shape = GradientDrawable.OVAL; setStroke(dp(1), Color.parseColor("#80FFFFFF")) }
+        root.addView(mn, FrameLayout.LayoutParams(dp(38), dp(38)).apply { gravity = Gravity.TOP or Gravity.LEFT; setMargins(dp(38), dp(66), dp(22), 0) })
         mn.setOnClickListener { minimize(page) }
         done.setOnClickListener {
             Log.i(this, "done pressed"); if (!testMode) Wird.applyDone(store, book, page); hideOverlay()
@@ -198,6 +206,7 @@ class WaqfaService : Service() {
             -1, -1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
             PixelFormat.TRANSLUCENT)
+        if (Build.VERSION.SDK_INT >= 31) { try { lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND; lp.blurBehindRadius = 40 } catch (_: Throwable) {} }
         bigView = root
         try { wm.addView(root, lp); overlay = root; store.overlayUp = true; store.lastErr = ""; Wird.markShown(store); Log.i(this, "window shown, page $page"); h.removeCallbacks(autoClose); h.postDelayed(autoClose, 10 * 60 * 1000L); checkVisible(root) } catch (e: Throwable) { overlay = null; store.lastErr = "overlay: " + e.javaClass.simpleName + " " + (e.message ?: ""); Log.i(this, "window FAILED: " + store.lastErr); alertNote(page); store.accMs = Wird.laterAcc(store) }
     }
