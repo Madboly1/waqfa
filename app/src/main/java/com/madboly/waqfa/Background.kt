@@ -28,7 +28,7 @@ object Background {
         try { scheduleWatchdog(c) } catch (_: Throwable) {}
     }
 
-    private const val CAP = 20 * 60 * 1000L
+    private const val CAP = 60 * 60 * 1000L
 
     /** Credits screen-on time since the last sample and re-arms the due alarm. Safe to call from anywhere, any time. */
     @Synchronized fun accrue(c: Context, event: Boolean) {
@@ -45,7 +45,7 @@ object Background {
             else if (st.wallMode) { if (gap > 0) st.accMs = st.accMs + gap }
             else if (!st.sActive) skip = "previous state was screen off or locked"
             else if (!(event || act)) skip = "screen off or locked now"
-            else if (gap > 0) st.accMs = st.accMs + gap.coerceAtMost(CAP)
+            else if (gap > 0) { st.accMs = st.accMs + gap.coerceAtMost(CAP); if (gap > 120000) Log.i(c, "long gap credited " + gap.coerceAtMost(CAP) / 1000 + "s of " + gap / 1000 + "s (service was not ticking)") }
             if (skip != "" && gap > 20000 && skip != lastSkip) { lastSkip = skip; Log.i(c, "counter skipped " + gap / 1000 + "s: " + skip) }
             if (skip == "") lastSkip = ""
             if (event) Log.i(c, "screen event, active=$act acc=${st.accMs / 1000}s")
