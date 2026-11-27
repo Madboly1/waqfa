@@ -24,6 +24,8 @@ object Library {
     } catch (_: Throwable) { emptyList() }
 
     private fun save(st: Store, l: List<Book>) {
+        // a corrupt list reads as empty; never let that overwrite the stored data
+        if (l.isEmpty() && st.booksJson.isNotBlank()) { try { JSONArray(st.booksJson) } catch (_: Throwable) { return } }
         val a = JSONArray()
         for (b in l) a.put(JSONObject().put("id", b.id).put("title", b.title).put("type", b.type).put("count", b.count).put("cur", b.cur))
         st.booksJson = a.toString()
@@ -75,7 +77,7 @@ object Library {
                 lower.endsWith(".txt") || mime.startsWith("text/") -> "txt"
                 else -> return "صيغة غير مدعومة، استخدم PDF أو EPUB أو TXT"
             }
-            val id = java.lang.Long.toString(System.currentTimeMillis(), 36)
+            val id = java.lang.Long.toString(System.currentTimeMillis(), 36) + java.lang.Integer.toString((Math.random() * 1295).toInt(), 36)
             val raw = File(dir(ctx), "$id.raw")
             ctx.contentResolver.openInputStream(uri)?.use { i -> raw.outputStream().use { o -> i.copyTo(o) } } ?: return "تعذر فتح الملف"
             if (raw.length() > 150L * 1024 * 1024) { raw.delete(); return "الملف كبير جدًا (أكثر من 150 م.ب)" }
@@ -83,7 +85,7 @@ object Library {
             val count: Int
             when (type) {
                 "pdf" -> {
-                    val f = File(dir(ctx), "$id.pdf"); raw.renameTo(f)
+                    val f = File(dir(ctx), "$id.pdf"); if (!raw.renameTo(f)) { raw.delete(); return "تعذر حفظ الملف" }
                     val r = PdfRenderer(ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY))
                     count = r.pageCount; r.close()
                     if (count < 1) { f.delete(); return "ملف PDF فارغ" }

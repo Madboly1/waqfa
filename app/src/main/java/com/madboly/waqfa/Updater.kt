@@ -25,6 +25,7 @@ object Updater {
     fun install(ctx: Context, url: String) {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 15000; c.readTimeout = 60000; c.instanceFollowRedirects = true
+        if (c.responseCode != 200) { c.disconnect(); throw IllegalStateException("download HTTP " + c.responseCode) }
         val pi = ctx.packageManager.packageInstaller
         val sid = pi.createSession(PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL))
         val s = pi.openSession(sid)

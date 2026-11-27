@@ -115,7 +115,7 @@ class Store(ctx: Context) {
 
     fun exportJson(): String {
         val o = JSONObject()
-        o.put("v", 1); o.put("target_min", targetMin); o.put("page", page); o.put("snooze_min", snoozeMin)
+        o.put("v", 2); o.put("target_min", targetMin); o.put("page", page); o.put("snooze_min", snoozeMin)
         o.put("days", daysCsv); o.put("total", totalPages); o.put("later", laterCount); o.put("sum_ms", sumMs); o.put("done_cnt", doneCount)
         o.put("city", city); o.put("country", country); o.put("p_before", pBefore); o.put("p_after", pAfter); o.put("prayer_on", prayerOn)
         o.put("auto_backup", autoBackup); o.put("mode", mode); o.put("max_day", maxPerDay); o.put("quiet_on", quietOn); o.put("quiet_from", quietFrom); o.put("quiet_to", quietTo); o.put("smart_video", smartVideo); o.put("books_prayer", booksPrayer)
@@ -125,6 +125,7 @@ class Store(ctx: Context) {
     }
     fun importJson(t: String) {
         val o = JSONObject(t)
+        if (o.optInt("v", 1) > 2) throw IllegalArgumentException("newer backup version")
         if (o.has("target_min")) targetMin = o.getInt("target_min")
         if (o.has("page")) page = o.getInt("page")
         if (o.has("snooze_min")) snoozeMin = o.getInt("snooze_min")

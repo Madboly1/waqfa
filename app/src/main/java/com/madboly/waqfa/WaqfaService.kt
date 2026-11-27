@@ -249,6 +249,7 @@ class WaqfaService : Service() {
     private fun removeTarget() { target?.let { try { (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(it) } catch (_: Exception) {} }; target = null }
 
     private fun minimize(page: Int) {
+        h.removeCallbacks(autoClose); h.postDelayed(autoClose, 10 * 60 * 1000L)
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         val big = bigView ?: return
         try { wm.removeView(big) } catch (_: Exception) {}
@@ -306,6 +307,7 @@ class WaqfaService : Service() {
     }
 
     private fun restore() {
+        h.removeCallbacks(autoClose); h.postDelayed(autoClose, 10 * 60 * 1000L)
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         removeTarget()
         bubble?.let { try { wm.removeView(it) } catch (_: Exception) {} }; bubble = null

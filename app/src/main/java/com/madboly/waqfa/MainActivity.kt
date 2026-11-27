@@ -376,7 +376,7 @@ class MainActivity : Activity() {
             s.addView(btn("استيراد ملف", false) {
                 startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), 12)
             }, lp(6))
-            s.addView(label("يُحفظ: الإعدادات والصفحة الحالية والإحصائيات، في مساحة التطبيق الخاصة في درايف.", 12f).apply { setTextColor(Color.GRAY) }, lp(8))
+            s.addView(label("يُحفظ: الإعدادات والصفحة الحالية والإحصائيات وتقدّم الكتب (ملفات الكتب نفسها لا تُنسخ)، في مساحة التطبيق الخاصة في درايف.", 12f).apply { setTextColor(Color.GRAY) }, lp(8))
             updateBackupViews()
         }
 
@@ -414,7 +414,7 @@ class MainActivity : Activity() {
         }
         try {
             if (rq == 11) { contentResolver.openOutputStream(u)?.use { it.write(store.exportJson().toByteArray()) }; toast("تم التصدير") }
-            if (rq == 12) { val t = contentResolver.openInputStream(u)!!.bufferedReader().use { it.readText() }; store.importJson(t); toast("تم الاستيراد"); showSettings() }
+            if (rq == 12) { val ins = contentResolver.openInputStream(u); if (ins == null) toast("تعذر فتح الملف") else { val t = ins.bufferedReader().use { it.readText() }; try { store.importJson(t); toast("تم الاستيراد") } catch (_: Throwable) { toast("ملف النسخة الاحتياطية غير صالح") } }; showSettings() }
         } catch (e: Throwable) { toast("فشل: " + e.javaClass.simpleName) }
     }
 
@@ -555,7 +555,7 @@ class MainActivity : Activity() {
             }
             if (Build.VERSION.SDK_INT >= 29) {
                 if (Background.usageGranted(this)) okRow("العدّ الدقيق عبر النظام (بيانات الاستخدام): مفعّل") else {
-                    perms?.addView(label("لو فعّلت «الوصول لبيانات الاستخدام» لوَقفَة، النظام نفسه يحسب وقت فتح الشاشة، فيكون العدّ دقيقًا حتى لو أوقف الهاتف الخدمة في الخلفية. وَقفَة لا تقرأ إلا أوقات تشغيل الشاشة وقفلها، ولا ترى أي تطبيق تستخدمه.", 13f).apply { setTextColor(Color.GRAY) }, lp(8))
+                    perms?.addView(label("لو فعّلت «الوصول لبيانات الاستخدام» لوَقفَة، النظام نفسه يحسب وقت فتح الشاشة، فيكون العدّ دقيقًا حتى لو أوقف الهاتف الخدمة في الخلفية. وَقفَة لا تقرأ إلا أوقات تشغيل الشاشة وقفلها، ولا ترى أي تطبيق تستخدمه.\nلو ظهر أن الخيار «محظور» أو غير متاح: افتح معلومات التطبيق من إعدادات الهاتف، اضغط ⋮ ثم «السماح بالإعدادات المقيّدة»، وارجع للمحاولة.", 13f).apply { setTextColor(Color.GRAY) }, lp(8))
                     permRow("تفعيل العدّ الدقيق (الوصول لبيانات الاستخدام)") {
                         try { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:$packageName"))) } catch (_: Throwable) { try { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } catch (_: Throwable) {} }
                     }
