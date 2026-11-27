@@ -6,6 +6,7 @@ import java.io.File
 class WaqfaApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        Log.purge(this)
         try {
             val st = Store(this)
             val gap = if (st.lastTick > 0) (System.currentTimeMillis() - st.lastTick) / 60000 else -1

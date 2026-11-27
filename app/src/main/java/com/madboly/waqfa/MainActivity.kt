@@ -103,11 +103,14 @@ class MainActivity : Activity() {
         intent?.removeExtra("reader")
         val book = if (Library.nextIsBook(store)) Library.current(store) else null
         val page = if (book != null) book.cur else store.page
+        val vres = if (book == null && store.qmode == "verses") Verses.view(this, store) else null
         val root = LinearLayout(this); root.orientation = LinearLayout.VERTICAL; root.setBackgroundColor(cream); root.layoutDirection = View.LAYOUT_DIRECTION_RTL
         val hd = TextView(this); hd.setTextColor(Color.WHITE); hd.textSize = 17f; hd.gravity = Gravity.CENTER; hd.setBackgroundColor(green); hd.setPadding(dp(16), dp(36), dp(16), dp(12))
-        hd.text = if (book != null) "وردك الآن  ·  " + book.title + "  ·  صفحة $page من " + book.count else "وردك الآن  ·  صفحة $page"
+        hd.text = if (vres != null) "وردك الآن  ·  " + vres.second else if (book != null) "وردك الآن  ·  " + book.title + "  ·  صفحة $page من " + book.count else "وردك الآن  ·  صفحة $page"
         root.addView(hd, LinearLayout.LayoutParams(-1, -2))
-        if (book != null && book.type != "pdf") {
+        if (vres != null) {
+            vres.first.setBackgroundColor(Color.parseColor("#FBF7EC")); root.addView(vres.first, LinearLayout.LayoutParams(-1, 0, 1f))
+        } else if (book != null && book.type != "pdf") {
             val tv = TextView(this); tv.text = "..."; Library.async({ Library.textPage(this, book, page) }) { r -> tv.text = r ?: "" }; tv.textSize = 18f; tv.setTextColor(Color.parseColor("#222222"))
             tv.setLineSpacing(0f, 1.25f); tv.setPadding(dp(18), dp(14), dp(18), dp(14)); tv.textDirection = View.TEXT_DIRECTION_FIRST_STRONG
             val sc = ScrollView(this); sc.addView(tv); root.addView(sc, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -123,18 +126,6 @@ class MainActivity : Activity() {
         root.addView(row, LinearLayout.LayoutParams(-1, -2))
         Wird.markShown(store)
         setContentView(root)
-    }
-
-    private fun showLog() {
-        screen = "log"
-        val (sv, col) = page()
-        col.addView(label("سجل التشخيص", 22f, true))
-        col.addView(label("الإصدار " + (try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Throwable) { "?" }) + "  |  المدة " + store.targetMin + " د  |  العداد " + (store.accMs / 1000) + " ث  |  الخدمة " + (if (store.enabled) "مفعّلة" else "متوقفة") + "  |  نبضة " + ((System.currentTimeMillis() - store.lastTick) / 1000) + " ث", 12f), lp(6))
-        col.addView(TextView(this).apply { text = Log.read(this@MainActivity); textSize = 11f; setTextIsSelectable(true); setTextColor(Color.parseColor("#222222")); layoutDirection = View.LAYOUT_DIRECTION_LTR; setPadding(0, dp(10), 0, dp(10)) })
-        col.addView(btn("تحديث", false) { showLog() }, lp(6))
-        col.addView(btn("مسح السجل", false) { Log.clear(this); showLog() }, lp(6))
-        col.addView(btn("رجوع", false) { showHome() }, lp(6))
-        setContentView(sv)
     }
 
     private fun trace(e: Throwable): String { val sw = java.io.StringWriter(); e.printStackTrace(java.io.PrintWriter(sw)); return sw.toString().take(6000) }
@@ -223,7 +214,6 @@ class MainActivity : Activity() {
         if (store.bookPages > 0) c3.addView(label("منها من الكتب: ${store.bookPages}", 15f), lp(6))
         col.addView(c3, lp(12))
         col.addView(btn("⚙ الإعدادات", false) { showSettings() }, lp(16))
-        col.addView(btn("سجل التشخيص", false) { showLog() }, lp(8))
         setContentView(sv); refresh()
     }
 
@@ -255,7 +245,7 @@ class MainActivity : Activity() {
             val pe = numField("ابدأ من صفحة (١ إلى ٦٠٤)", store.page.toString()); pageField = pe
             s.addView(textRow(pe, "حفظ") {
                 val v = num(pe.text.toString())
-                if (v != null && v in 1..604) { store.page = v; pe.setText(v.toString()); refresh(); toast("تم الحفظ: صفحة $v") } else toast("اكتب رقم من 1 إلى 604")
+                if (v != null && v in 1..604) { store.page = v; store.vidx = -1; pe.setText(v.toString()); refresh(); toast("تم الحفظ: صفحة $v") } else toast("اكتب رقم من 1 إلى 604")
             }, lp(6))
             pause = CheckBox(this); pause!!.text = "إيقاف التنبيه لباقي اليوم"
             s.addView(pause, lp(12))
@@ -272,6 +262,21 @@ class MainActivity : Activity() {
             }
             drawModes(); s.addView(modeRow, lp(4))
             s.addView(label("بالتناوب: مرة صفحة قرآن ومرة صفحة من كتابك الحالي. لو ما أضفت كتابًا يظهر القرآن.", 12f).apply { setTextColor(Color.GRAY) }, lp(8))
+        }
+
+        section(col, "شكل العرض", false) { s ->
+            val vr = LinearLayout(this); vr.orientation = LinearLayout.HORIZONTAL
+            fun drawQ() {
+                vr.removeAllViews()
+                for ((tt, m) in listOf("صفحة كاملة" to "page", "عدد آيات" to "verses")) {
+                    vr.addView(btn(tt, store.qmode == m) { if (m == "verses" && store.vidx < 0) store.vidx = Verses.startOf(this, store.page); store.qmode = m; drawQ(); toast("تم الحفظ") }, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
+                }
+            }
+            drawQ(); s.addView(vr, lp(4))
+            s.addView(label("عدد الآيات في كل مرة", 15f, true), lp(12))
+            val ve = numField("مثلًا ٥", store.vcount.toString())
+            s.addView(textRow(ve, "حفظ") { val v = num(ve.text.toString()); if (v != null && v in 1..50) { store.vcount = v; ve.setText(v.toString()); toast("تم الحفظ: $v") } else toast("اكتب رقم من 1 إلى 50") }, lp(4))
+            s.addView(label("وضع الآيات يعرض نصًا بخط أميري قرآن بدل صورة المصحف، وتتقدّم الآيات بعد كل «قرأت وردي».", 12f).apply { setTextColor(Color.GRAY) }, lp(6))
         }
 
         section(col, "التنبيه الذكي", false) { s ->
@@ -383,6 +388,10 @@ class MainActivity : Activity() {
             val ver = label("الإصدار ${packageManager.getPackageInfo(packageName, 0).versionName}", 12f); ver.gravity = Gravity.CENTER; s.addView(ver, lp(10))
             val credit = label("صفحات المصحف: مصحف المدينة النبوية، مجمع الملك فهد لطباعة المصحف الشريف", 11f)
             credit.gravity = Gravity.CENTER; credit.setTextColor(Color.GRAY); s.addView(credit, lp(8))
+            val c2 = label("نص القرآن (وضع الآيات): Tanzil Project، tanzil.net، رخصة Creative Commons Attribution 3.0، بدون أي تعديل على النص.", 11f)
+            c2.gravity = Gravity.CENTER; c2.setTextColor(Color.GRAY); s.addView(c2, lp(6))
+            val c3 = label("الخط: Amiri Quran، رخصة SIL Open Font License 1.1 (الملف مرفق داخل التطبيق).", 11f)
+            c3.gravity = Gravity.CENTER; c3.setTextColor(Color.GRAY); s.addView(c3, lp(6))
         }
         setContentView(sv); permSig = ""; refresh()
     }
@@ -495,7 +504,7 @@ class MainActivity : Activity() {
 
     private fun nextLabel(): String {
         val b = if (Library.nextIsBook(store)) Library.current(store) else null
-        return if (b != null) "القادم: " + b.title + " · صفحة " + b.cur + " من " + b.count else "الصفحة القادمة: " + store.page
+        return if (b != null) "القادم: " + b.title + " · صفحة " + b.cur + " من " + b.count else if (store.qmode == "verses") "الآيات القادمة: " + Verses.label(store) else "الصفحة القادمة: " + store.page
     }
 
     private fun openFirst(vararg comps: Pair<String, String>) {
@@ -607,7 +616,7 @@ class MainActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (screen == "settings" || screen == "log") { showHome(); return }
+        if (screen == "settings") { showHome(); return }
         if (screen == "onboarding") { finishOnboarding(); return }
         val now = System.currentTimeMillis()
         if (now - backAt < 2000) finish() else { backAt = now; toast("اضغط مرة أخرى للخروج") }

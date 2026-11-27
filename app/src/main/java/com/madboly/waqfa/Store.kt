@@ -8,6 +8,7 @@ import java.util.Date
 import java.util.Locale
 
 class Store(ctx: Context) {
+    val appCtx: Context = ctx.applicationContext
     private val p = ctx.applicationContext.getSharedPreferences("waqfa", Context.MODE_PRIVATE)
     private fun s(k: String, d: String = ""): String = try { p.getString(k, d) ?: d } catch (_: Throwable) { d }
     private fun ps(k: String, v: String) { p.edit().putString(k, v).apply() }
@@ -28,6 +29,9 @@ class Store(ctx: Context) {
     var lastErr: String get() = s("last_err"); set(v) = ps("last_err", v)
     var why: String get() = s("why"); set(v) = ps("why", v)
     var wallMode: Boolean get() = b("wall_mode", false); set(v) = pb("wall_mode", v)
+    var qmode: String get() = s("qmode", "page"); set(v) = ps("qmode", v)
+    var vcount: Int get() = i("vcount", 5); set(v) = pi("vcount", v.coerceIn(1, 50))
+    var vidx: Int get() = i("vidx", -1); set(v) = pi("vidx", v)
     var sAt: Long get() = l("s_at"); set(v) = pl("s_at", v)
     var sActive: Boolean get() = b("s_active", false); set(v) = pb("s_active", v)
     var overlayUp: Boolean get() = b("overlay_up", false); set(v) = pb("overlay_up", v)
@@ -112,6 +116,7 @@ class Store(ctx: Context) {
         o.put("days", daysCsv); o.put("total", totalPages); o.put("later", laterCount); o.put("sum_ms", sumMs); o.put("done_cnt", doneCount)
         o.put("city", city); o.put("country", country); o.put("p_before", pBefore); o.put("p_after", pAfter); o.put("prayer_on", prayerOn)
         o.put("auto_backup", autoBackup); o.put("mode", mode); o.put("max_day", maxPerDay); o.put("quiet_on", quietOn); o.put("quiet_from", quietFrom); o.put("quiet_to", quietTo); o.put("smart_video", smartVideo); o.put("books_prayer", booksPrayer)
+        o.put("qmode", qmode); o.put("vcount", vcount); o.put("vidx", vidx)
         try { o.put("books", org.json.JSONArray(booksJson)); o.put("cur_book_title", org.json.JSONArray(booksJson).let { a -> (0 until a.length()).map { a.getJSONObject(it) }.firstOrNull { it.optString("id") == curBook }?.optString("title") ?: "" }) } catch (_: Throwable) {}
         return o.toString()
     }
@@ -138,6 +143,9 @@ class Store(ctx: Context) {
         if (o.has("quiet_to")) quietTo = o.getInt("quiet_to")
         if (o.has("smart_video")) smartVideo = o.getBoolean("smart_video")
         if (o.has("books_prayer")) booksPrayer = o.getBoolean("books_prayer")
+        if (o.has("qmode")) qmode = o.getString("qmode")
+        if (o.has("vcount")) vcount = o.getInt("vcount")
+        if (o.has("vidx")) vidx = o.getInt("vidx")
         // books: files are not backed up, so only reading progress of books already on this phone (same title, type, page count) is restored
         try {
             if (o.has("books")) {

@@ -151,8 +151,9 @@ class WaqfaService : Service() {
         card.elevation = dp(12).toFloat()
         val hd = LinearLayout(this); hd.orientation = LinearLayout.VERTICAL; hd.setPadding(dp(22), dp(18), dp(70), dp(6))
         val ht = TextView(this); ht.text = "وردك الآن"; ht.setTextColor(Color.WHITE); ht.textSize = 19f; ht.typeface = android.graphics.Typeface.DEFAULT_BOLD; 
+        val vres = if (book == null && store.qmode == "verses") Verses.view(this, store) else null
         val hs = TextView(this); hs.setTextColor(Color.argb(210, 255, 255, 255)); hs.textSize = 13f
-        hs.text = if (book != null) book.title + "  ·  صفحة $page من " + book.count else "صفحة $page" + Wird.surahName(page).let { if (it.isEmpty()) "" else "  ·  $it" }
+        hs.text = if (vres != null) vres.second else if (book != null) book.title + "  ·  صفحة $page من " + book.count else "صفحة $page" + Wird.surahName(page).let { if (it.isEmpty()) "" else "  ·  $it" }
         hd.addView(ht); hd.addView(hs)
         card.addView(hd, LinearLayout.LayoutParams(-1, -2))
         val panel = FrameLayout(this)
@@ -161,7 +162,9 @@ class WaqfaService : Service() {
         val img = ImageView(this)
         img.scaleType = ImageView.ScaleType.FIT_CENTER
         img.setPadding(dp(6), dp(6), dp(6), dp(6))
-        if (book != null && book.type != "pdf") {
+        if (vres != null) {
+            panel.addView(vres.first, FrameLayout.LayoutParams(-1, -1))
+        } else if (book != null && book.type != "pdf") {
             val tv = TextView(this); tv.text = "..."; Library.async({ Library.textPage(this, book, page) }) { r -> tv.text = r ?: "" }; tv.textSize = 18f; tv.setTextColor(Color.parseColor("#222222"))
             tv.setLineSpacing(0f, 1.25f); tv.setPadding(dp(18), dp(14), dp(18), dp(14)); tv.textDirection = View.TEXT_DIRECTION_FIRST_STRONG
             val sc = ScrollView(this); sc.addView(tv)
@@ -195,6 +198,7 @@ class WaqfaService : Service() {
         val mn = FrameLayout(this)
         mn.background = GradientDrawable().apply { setColor(Color.parseColor("#38FFFFFF")); shape = GradientDrawable.OVAL; setStroke(dp(1), Color.parseColor("#80FFFFFF")) }
         for (k in 0..1) mn.addView(View(this).apply { background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(2).toFloat() } }, FrameLayout.LayoutParams(dp(4), dp(14)).apply { gravity = Gravity.CENTER; leftMargin = if (k == 0) -dp(5) else dp(5) })
+        mn.elevation = dp(24).toFloat()
         root.addView(mn, FrameLayout.LayoutParams(dp(38), dp(38)).apply { gravity = Gravity.TOP or Gravity.LEFT; setMargins(dp(38), dp(66), dp(22), 0) })
         mn.setOnClickListener { minimize(page) }
         done.setOnClickListener {
@@ -240,25 +244,61 @@ class WaqfaService : Service() {
         }, 2000)
     }
 
+    private var target: View? = null
+
+    private fun removeTarget() { target?.let { try { (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(it) } catch (_: Exception) {} }; target = null }
+
     private fun minimize(page: Int) {
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         val big = bigView ?: return
         try { wm.removeView(big) } catch (_: Exception) {}
-        val t = TextView(this); t.text = "\u23F8 ورد $page"; t.textSize = 16f; t.setTextColor(Color.WHITE)
-        t.setPadding(dp(16), dp(10), dp(16), dp(10))
-        t.background = GradientDrawable().apply { setColor(Color.parseColor("#0F5C4A")); cornerRadius = dp(24).toFloat() }
-        val lp = WindowManager.LayoutParams(-2, -2, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+        val sz = dp(58); val edge = dp(14)
+        val dm = resources.displayMetrics; val sw = dm.widthPixels; val sh = dm.heightPixels
+        val t = FrameLayout(this)
+        t.background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor("#F2358B76"), Color.parseColor("#F2155046"))).apply { shape = GradientDrawable.OVAL; setStroke(dp(2), Color.parseColor("#B3FFFFFF")) }
+        t.elevation = dp(10).toFloat()
+        for (k in 0..1) t.addView(View(this).apply { background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(2).toFloat() } }, FrameLayout.LayoutParams(dp(5), dp(20)).apply { gravity = Gravity.CENTER; leftMargin = if (k == 0) -dp(6) else dp(6) })
+        val lp = WindowManager.LayoutParams(sz, sz, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT)
-        lp.gravity = Gravity.TOP or Gravity.START; lp.x = dp(8); lp.y = dp(220)
+        lp.gravity = Gravity.TOP or Gravity.START; lp.x = sw - sz + edge; lp.y = dp(220)
         var sx = 0f; var sy = 0f; var ox = 0; var oy = 0; var moved = false
+        val tsz = dp(68)
+        fun showTarget() {
+            if (target != null) return
+            val g = FrameLayout(this)
+            g.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor("#59FFFFFF")); setStroke(dp(2), Color.parseColor("#99FFFFFF")) }
+            for (r in intArrayOf(45, -45)) g.addView(View(this).apply { rotation = r.toFloat(); background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(2).toFloat() } }, FrameLayout.LayoutParams(dp(26), dp(4)).apply { gravity = Gravity.CENTER })
+            val tl = WindowManager.LayoutParams(tsz, tsz, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT)
+            tl.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL; tl.y = dp(70)
+            try { wm.addView(g, tl); target = g } catch (_: Throwable) {}
+        }
+        fun near(): Boolean {
+            val cx = lp.x + sz / 2f; val cy = lp.y + sz / 2f
+            val tx = sw / 2f; val ty = sh - dp(70) - tsz / 2f
+            return Math.hypot((cx - tx).toDouble(), (cy - ty).toDouble()) < dp(95)
+        }
         t.setOnTouchListener { v, e ->
             when (e.action) {
                 android.view.MotionEvent.ACTION_DOWN -> { sx = e.rawX; sy = e.rawY; ox = lp.x; oy = lp.y; moved = false }
                 android.view.MotionEvent.ACTION_MOVE -> {
-                    if (Math.abs(e.rawX - sx) > dp(6) || Math.abs(e.rawY - sy) > dp(6)) moved = true
-                    if (moved) { lp.x = ox + (e.rawX - sx).toInt(); lp.y = oy + (e.rawY - sy).toInt(); try { wm.updateViewLayout(v, lp) } catch (_: Exception) {} }
+                    if (Math.abs(e.rawX - sx) > dp(6) || Math.abs(e.rawY - sy) > dp(6)) { if (!moved) showTarget(); moved = true }
+                    if (moved) {
+                        lp.x = ox + (e.rawX - sx).toInt(); lp.y = oy + (e.rawY - sy).toInt(); try { wm.updateViewLayout(v, lp) } catch (_: Exception) {}
+                        val n = near(); v.scaleX = if (n) 1.2f else 1f; v.scaleY = v.scaleX
+                        target?.let { it.scaleX = if (n) 1.25f else 1f; it.scaleY = it.scaleX; (it.background as? GradientDrawable)?.setColor(Color.parseColor(if (n) "#8CFF5A5A" else "#59FFFFFF")) }
+                    }
                 }
-                android.view.MotionEvent.ACTION_UP -> if (!moved) restore()
+                android.view.MotionEvent.ACTION_UP -> {
+                    if (!moved) restore()
+                    else if (near()) { removeTarget(); if (!testMode) Wird.applyLater(store); hideOverlay() }
+                    else {
+                        removeTarget(); v.scaleX = 1f; v.scaleY = 1f
+                        lp.x = if (lp.x + sz / 2 < sw / 2) -edge else sw - sz + edge
+                        lp.y = lp.y.coerceIn(dp(40), sh - sz - dp(40))
+                        try { wm.updateViewLayout(v, lp) } catch (_: Exception) {}
+                    }
+                }
             }
             true
         }
@@ -267,6 +307,7 @@ class WaqfaService : Service() {
 
     private fun restore() {
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        removeTarget()
         bubble?.let { try { wm.removeView(it) } catch (_: Exception) {} }; bubble = null
         val big = bigView ?: return
         try { wm.addView(big, WindowManager.LayoutParams(-1, -1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON, PixelFormat.TRANSLUCENT)) } catch (e: Throwable) { store.lastErr = "restore: " + e.javaClass.simpleName }
@@ -276,6 +317,7 @@ class WaqfaService : Service() {
 
     private fun hideOverlay() {
         h.removeCallbacks(autoClose)
+        removeTarget()
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         bubble?.let { try { wm.removeView(it) } catch (_: Exception) {} }; bubble = null
         bigView?.let { try { wm.removeView(it) } catch (_: Exception) {} }; bigView = null
