@@ -31,6 +31,39 @@ object Background {
     private const val CAP = 60 * 60 * 1000L
 
     /** Credits screen-on time since the last sample and re-arms the due alarm. Safe to call from anywhere, any time. */
+    fun usageGranted(c: Context): Boolean = try {
+        if (android.os.Build.VERSION.SDK_INT < 29) false else {
+            val ao = c.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+            ao.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), c.packageName) == android.app.AppOpsManager.MODE_ALLOWED
+        }
+    } catch (_: Throwable) { false }
+
+    /** Asks the system how long the screen was on and unlocked in (from, to]. Returns -1 if it cannot tell. */
+    private fun systemActiveMs(c: Context, st: Store, from: Long, to: Long, liveInter: Boolean, liveLock: Boolean): Long {
+        try {
+            val us = c.getSystemService(Context.USAGE_STATS_SERVICE) as android.app.usage.UsageStatsManager
+            var inter = st.uInter; var lock = st.uLock
+            var t = from; var sum = 0L
+            val ev = us.queryEvents(from, to) ?: return -1L
+            val e = android.app.usage.UsageEvents.Event()
+            var seen = false
+            while (ev.hasNextEvent()) {
+                ev.getNextEvent(e)
+                val ty = e.eventType
+                if (ty != 15 && ty != 16 && ty != 17 && ty != 18) continue
+                seen = true
+                if (inter && !lock) sum += (e.timeStamp - t).coerceAtLeast(0L)
+                t = maxOf(t, e.timeStamp)
+                when (ty) { 15 -> inter = true; 16 -> inter = false; 17 -> lock = true; 18 -> lock = false }
+            }
+            if (inter && !lock) sum += (to - t).coerceAtLeast(0L)
+            // sanity: the system's last known state must agree with what the phone says right now
+            if (inter != liveInter || lock != liveLock) { st.uInter = liveInter; st.uLock = liveLock; return -1L }
+            st.uInter = inter; st.uLock = lock
+            return sum
+        } catch (_: Throwable) { return -1L }
+    }
+
     @Synchronized fun accrue(c: Context, event: Boolean) {
         try {
             val st = Store(c)
@@ -40,6 +73,23 @@ object Background {
             val act = pm.isInteractive && !km.isKeyguardLocked
             val gap = now - st.sAt
             var skip = ""
+            val useSys = android.os.Build.VERSION.SDK_INT >= 29 && !st.wallMode && usageGranted(c)
+            if (useSys) {
+                val liveI = pm.isInteractive; val liveL = km.isKeyguardLocked
+                if (st.uAt <= 0 || now - st.uAt > 3 * 24 * 3600 * 1000L) { st.uInter = liveI; st.uLock = liveL; st.uAt = now }
+                else {
+                    val sys = systemActiveMs(c, st, st.uAt, now, liveI, liveL)
+                    if (sys >= 0) {
+                        if (!st.overlayUp) st.accMs = st.accMs + sys
+                        if (sys > 120000) Log.i(c, "system counted " + sys / 1000 + "s")
+                        st.uAt = now; st.sAt = now; st.sActive = act
+                        if (event) Log.i(c, "screen event, active=$act acc=${st.accMs / 1000}s (system)")
+                        if (st.enabled) scheduleDue(c, st, act)
+                        return
+                    }
+                    st.uAt = now
+                }
+            } else st.uAt = 0L
             if (st.sAt <= 0) skip = "first run"
             else if (st.overlayUp) skip = "window or bubble is up"
             else if (st.wallMode) { if (gap > 0) st.accMs = st.accMs + gap }
@@ -71,6 +121,7 @@ object Background {
         lastCancelWhy = ""
         val rem = st.targetMin * 60000L - st.accMs
         val at = System.currentTimeMillis() + (if (rem <= 0) 60000L else rem + 500L)
+        if (lastDue != 0L && Math.abs(at - lastDue) <= 5000L) return
         var how = "exact"
         try {
             if (rem > 0) {

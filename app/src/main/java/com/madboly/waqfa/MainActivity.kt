@@ -545,13 +545,21 @@ class MainActivity : Activity() {
         pageField?.let { f -> if (!f.hasFocus()) { val t = store.page.toString(); if (f.text.toString() != t) f.setText(t) } }
         pause?.let { p -> p.setOnCheckedChangeListener(null); p.isChecked = store.pausedToday(); p.setOnCheckedChangeListener { _, o -> store.setPausedToday(o) } }
         val pm = getSystemService(POWER_SERVICE) as PowerManager
-        val sig = "" + Settings.canDrawOverlays(this) + pm.isIgnoringBatteryOptimizations(packageName) + packageManager.canRequestPackageInstalls() + (Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED)
+        val sig = "" + Background.usageGranted(this) + Settings.canDrawOverlays(this) + pm.isIgnoringBatteryOptimizations(packageName) + packageManager.canRequestPackageInstalls() + (Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED)
         if (sig != permSig) {
             permSig = sig
             perms?.removeAllViews()
             fun okRow(t: String) { perms?.addView(label("✓ $t", 15f).apply { setTextColor(green) }, lp(6)) }
             if (Settings.canDrawOverlays(this)) okRow("الظهور فوق التطبيقات: مسموح") else permRow("السماح بالظهور فوق التطبيقات (مطلوب)") {
                 startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            }
+            if (Build.VERSION.SDK_INT >= 29) {
+                if (Background.usageGranted(this)) okRow("العدّ الدقيق عبر النظام (بيانات الاستخدام): مفعّل") else {
+                    perms?.addView(label("لو فعّلت «الوصول لبيانات الاستخدام» لوَقفَة، النظام نفسه يحسب وقت فتح الشاشة، فيكون العدّ دقيقًا حتى لو أوقف الهاتف الخدمة في الخلفية. وَقفَة لا تقرأ إلا أوقات تشغيل الشاشة وقفلها، ولا ترى أي تطبيق تستخدمه.", 13f).apply { setTextColor(Color.GRAY) }, lp(8))
+                    permRow("تفعيل العدّ الدقيق (الوصول لبيانات الاستخدام)") {
+                        try { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:$packageName"))) } catch (_: Throwable) { try { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } catch (_: Throwable) {} }
+                    }
+                }
             }
             if (pm.isIgnoringBatteryOptimizations(packageName)) okRow("استثناء توفير البطارية: مسموح") else permRow("استثناء من توفير البطارية (يُنصح به)") {
                 startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
