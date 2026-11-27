@@ -62,6 +62,12 @@ object Drive {
         } catch (e: Throwable) { "تعذر الاتصال: " + e.javaClass.simpleName }
     }
 
+    /** best effort: tell Google to drop the token */
+    fun revoke(tok: String) {
+        if (tok.isEmpty()) return
+        try { call("POST", "https://oauth2.googleapis.com/revoke", null, ("token=" + enc(tok)).toByteArray(), "application/x-www-form-urlencoded") } catch (_: Throwable) {}
+    }
+
     private fun errShort(b: String): String = try { JSONObject(b).optString("error_description", JSONObject(b).optString("error", "")) } catch (_: Exception) { "" }
 
     private fun access(st: Store): String {

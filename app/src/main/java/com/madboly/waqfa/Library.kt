@@ -54,6 +54,12 @@ object Library {
         if (st.curBook == id) st.curBook = ""
     }
 
+    /** run f off the main thread, deliver the result on the main thread */
+    fun <T> async(f: () -> T, cb: (T) -> Unit) {
+        val mh = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread { val r = try { f() } catch (e: Throwable) { null }; mh.post { try { @Suppress("UNCHECKED_CAST") cb(r as T) } catch (_: Throwable) {} } }.start()
+    }
+
     private fun dir(ctx: Context): File { val d = File(ctx.filesDir, "books"); d.mkdirs(); return d }
 
     /** returns error text or null. Run off the main thread. */

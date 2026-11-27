@@ -156,15 +156,14 @@ class WaqfaService : Service() {
         img.scaleType = ImageView.ScaleType.FIT_CENTER
         img.setPadding(dp(6), dp(6), dp(6), dp(6))
         if (book != null && book.type != "pdf") {
-            val tv = TextView(this); tv.text = Library.textPage(this, book, page); tv.textSize = 18f; tv.setTextColor(Color.parseColor("#222222"))
+            val tv = TextView(this); tv.text = "..."; Library.async({ Library.textPage(this, book, page) }) { r -> tv.text = r ?: "" }; tv.textSize = 18f; tv.setTextColor(Color.parseColor("#222222"))
             tv.setLineSpacing(0f, 1.25f); tv.setPadding(dp(18), dp(14), dp(18), dp(14)); tv.textDirection = View.TEXT_DIRECTION_FIRST_STRONG
             val sc = ScrollView(this); sc.addView(tv)
             card.addView(sc, LinearLayout.LayoutParams(-1, 0, 1f))
         } else {
             try {
                 if (book != null) {
-                    val bmp = Library.pdfPage(this, book, page, resources.displayMetrics.widthPixels)
-                    if (bmp == null) store.lastErr = "pdf page failed: $page" else img.setImageBitmap(bmp)
+                    Library.async({ Library.pdfPage(this, book, page, resources.displayMetrics.widthPixels) }) { bmp -> if (bmp == null) store.lastErr = "pdf page failed: $page" else img.setImageBitmap(bmp) }
                 } else {
                     val name = String.format(java.util.Locale.US, "pages/p%03d.webp", page)
                     val bmp = assets.open(name).use { BitmapFactory.decodeStream(it) }
@@ -200,7 +199,7 @@ class WaqfaService : Service() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
             PixelFormat.TRANSLUCENT)
         bigView = root
-        try { wm.addView(root, lp); overlay = root; store.overlayUp = true; store.lastErr = ""; Wird.markShown(store); Log.i(this, "window shown, page $page"); checkVisible(root) } catch (e: Throwable) { overlay = null; store.lastErr = "overlay: " + e.javaClass.simpleName + " " + (e.message ?: ""); Log.i(this, "window FAILED: " + store.lastErr); alertNote(page); store.accMs = Wird.laterAcc(store) }
+        try { wm.addView(root, lp); overlay = root; store.overlayUp = true; store.lastErr = ""; Wird.markShown(store); Log.i(this, "window shown, page $page"); h.removeCallbacks(autoClose); h.postDelayed(autoClose, 10 * 60 * 1000L); checkVisible(root) } catch (e: Throwable) { overlay = null; store.lastErr = "overlay: " + e.javaClass.simpleName + " " + (e.message ?: ""); Log.i(this, "window FAILED: " + store.lastErr); alertNote(page); store.accMs = Wird.laterAcc(store) }
     }
 
     private fun alertNote(page: Int) {
@@ -263,7 +262,10 @@ class WaqfaService : Service() {
         try { wm.addView(big, WindowManager.LayoutParams(-1, -1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON, PixelFormat.TRANSLUCENT)) } catch (e: Throwable) { store.lastErr = "restore: " + e.javaClass.simpleName }
     }
 
+    private val autoClose = Runnable { if (overlay != null) { Log.i(this, "window auto-closed after 10 min"); if (!testMode) Wird.applyLater(store); hideOverlay() } }
+
     private fun hideOverlay() {
+        h.removeCallbacks(autoClose)
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
         bubble?.let { try { wm.removeView(it) } catch (_: Exception) {} }; bubble = null
         bigView?.let { try { wm.removeView(it) } catch (_: Exception) {} }; bigView = null

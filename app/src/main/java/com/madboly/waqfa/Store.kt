@@ -21,7 +21,7 @@ class Store(ctx: Context) {
     var enabled: Boolean get() = b("enabled", false); set(v) = pb("enabled", v)
     var targetMin: Int get() = i("target_min", 15); set(v) = pi("target_min", v.coerceIn(1, 1440))
     var accMs: Long get() = l("acc_ms"); set(v) = pl("acc_ms", v)
-    var page: Int get() = i("page", 2); set(v) = pi("page", if (v > 604 || v < 1) 1 else v)
+    var page: Int get() = i("page", 1); set(v) = pi("page", if (v > 604 || v < 1) 1 else v)
     var snoozeMin: Int get() = i("snooze_min", 5); set(v) = pi("snooze_min", v.coerceIn(1, 120))
     var pauseDay: String get() = s("pause_day"); set(v) = ps("pause_day", v)
     var lastTick: Long get() = l("last_tick"); set(v) = pl("last_tick", v)
@@ -66,7 +66,14 @@ class Store(ctx: Context) {
     var doneCount: Int get() = i("done_cnt", 0); set(v) = pi("done_cnt", v)
 
     // backup / account
-    var refreshToken: String get() = s("refresh"); set(v) = ps("refresh", v)
+    var refreshToken: String
+        get() {
+            val raw = s("refresh")
+            if (raw.startsWith("enc1:")) return Secure.dec(raw.substring(5))
+            if (raw.isNotEmpty()) { val e = Secure.enc(raw); if (e.isNotEmpty()) ps("refresh", "enc1:$e"); return raw }
+            return ""
+        }
+        set(v) { if (v.isEmpty()) ps("refresh", "") else { val e = Secure.enc(v); ps("refresh", if (e.isEmpty()) v else "enc1:$e") } }
     var email: String get() = s("email"); set(v) = ps("email", v)
     var autoBackup: Boolean get() = b("auto_backup", true); set(v) = pb("auto_backup", v)
     var lastBackup: Long get() = l("last_backup"); set(v) = pl("last_backup", v)
@@ -105,6 +112,7 @@ class Store(ctx: Context) {
         o.put("days", daysCsv); o.put("total", totalPages); o.put("later", laterCount); o.put("sum_ms", sumMs); o.put("done_cnt", doneCount)
         o.put("city", city); o.put("country", country); o.put("p_before", pBefore); o.put("p_after", pAfter); o.put("prayer_on", prayerOn)
         o.put("auto_backup", autoBackup); o.put("mode", mode); o.put("max_day", maxPerDay); o.put("quiet_on", quietOn); o.put("quiet_from", quietFrom); o.put("quiet_to", quietTo); o.put("smart_video", smartVideo); o.put("books_prayer", booksPrayer)
+        try { o.put("books", org.json.JSONArray(booksJson)); o.put("cur_book_title", org.json.JSONArray(booksJson).let { a -> (0 until a.length()).map { a.getJSONObject(it) }.firstOrNull { it.optString("id") == curBook }?.optString("title") ?: "" }) } catch (_: Throwable) {}
         return o.toString()
     }
     fun importJson(t: String) {
@@ -130,6 +138,18 @@ class Store(ctx: Context) {
         if (o.has("quiet_to")) quietTo = o.getInt("quiet_to")
         if (o.has("smart_video")) smartVideo = o.getBoolean("smart_video")
         if (o.has("books_prayer")) booksPrayer = o.getBoolean("books_prayer")
+        // books: files are not backed up, so only reading progress of books already on this phone (same title, type, page count) is restored
+        try {
+            if (o.has("books")) {
+                val bk = o.getJSONArray("books"); val loc = org.json.JSONArray(booksJson)
+                for (i in 0 until loc.length()) { val lb = loc.getJSONObject(i)
+                    for (j in 0 until bk.length()) { val rb = bk.getJSONObject(j)
+                        if (rb.optString("title") == lb.optString("title") && rb.optString("type") == lb.optString("type") && rb.optInt("count") == lb.optInt("count")) lb.put("cur", rb.optInt("cur", 1).coerceIn(1, lb.optInt("count").coerceAtLeast(1)))
+                        if (o.optString("cur_book_title").isNotEmpty() && lb.optString("title") == o.optString("cur_book_title")) curBook = lb.optString("id")
+                    } }
+                booksJson = loc.toString()
+            }
+        } catch (_: Throwable) {}
         prayerData = ""; prayerTry = 0L
     }
     fun resetAll() { p.edit().clear().apply() }

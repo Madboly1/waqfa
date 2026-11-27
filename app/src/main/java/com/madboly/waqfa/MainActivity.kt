@@ -108,16 +108,13 @@ class MainActivity : Activity() {
         hd.text = if (book != null) "وردك الآن  ·  " + book.title + "  ·  صفحة $page من " + book.count else "وردك الآن  ·  صفحة $page"
         root.addView(hd, LinearLayout.LayoutParams(-1, -2))
         if (book != null && book.type != "pdf") {
-            val tv = TextView(this); tv.text = Library.textPage(this, book, page); tv.textSize = 18f; tv.setTextColor(Color.parseColor("#222222"))
+            val tv = TextView(this); tv.text = "..."; Library.async({ Library.textPage(this, book, page) }) { r -> tv.text = r ?: "" }; tv.textSize = 18f; tv.setTextColor(Color.parseColor("#222222"))
             tv.setLineSpacing(0f, 1.25f); tv.setPadding(dp(18), dp(14), dp(18), dp(14)); tv.textDirection = View.TEXT_DIRECTION_FIRST_STRONG
             val sc = ScrollView(this); sc.addView(tv); root.addView(sc, LinearLayout.LayoutParams(-1, 0, 1f))
         } else {
             val img = ImageView(this); img.scaleType = ImageView.ScaleType.FIT_CENTER; img.setPadding(dp(6), dp(6), dp(6), dp(6))
-            try {
-                val bmp = if (book != null) Library.pdfPage(this, book, page, resources.displayMetrics.widthPixels)
-                else assets.open(String.format(Locale.US, "pages/p%03d.webp", page)).use { android.graphics.BitmapFactory.decodeStream(it) }
-                if (bmp != null) img.setImageBitmap(bmp)
-            } catch (_: Throwable) {}
+            if (book != null) Library.async({ Library.pdfPage(this, book, page, resources.displayMetrics.widthPixels) }) { bmp -> if (bmp != null) img.setImageBitmap(bmp) }
+            else try { assets.open(String.format(Locale.US, "pages/p%03d.webp", page)).use { android.graphics.BitmapFactory.decodeStream(it) }?.let { img.setImageBitmap(it) } } catch (_: Throwable) {}
             root.addView(img, LinearLayout.LayoutParams(-1, 0, 1f))
         }
         val row = LinearLayout(this); row.orientation = LinearLayout.HORIZONTAL; row.setPadding(dp(10), dp(8), dp(10), dp(16))
@@ -365,7 +362,7 @@ class MainActivity : Activity() {
             s.addView(btn("استعادة من درايف", false) {
                 toast("جاري الاستعادة..."); Thread { try { val e = Drive.restore(store); runOnUiThread { toast(e ?: "تمت الاستعادة"); if (e == null) showSettings() } } catch (_: Throwable) {} }.start()
             }, lp(6))
-            s.addView(btn("تسجيل الخروج", false) { store.refreshToken = ""; store.email = ""; updateBackupViews() }, lp(6))
+            s.addView(btn("تسجيل الخروج", false) { val rt = store.refreshToken; store.refreshToken = ""; store.email = ""; Thread { Drive.revoke(rt) }.start(); updateBackupViews() }, lp(6))
             s.addView(label("نسخة محلية", 14f, true), lp(14))
             s.addView(btn("تصدير ملف", false) {
                 val i = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json").putExtra(Intent.EXTRA_TITLE, "waqfa-backup.json")
@@ -484,6 +481,7 @@ class MainActivity : Activity() {
                 val cur = packageManager.getPackageInfo(packageName, 0).let { @Suppress("DEPRECATION") it.versionCode }
                 if (info == null) msg = "لا توجد قناة تحديث متاحة حاليًا"
                 else if (info.code <= cur) msg = "أنت على آخر إصدار"
+                else if (info.url.isBlank()) msg = "يوجد إصدار أحدث لكن رابط التنزيل غير متاح بعد"
                 else {
                     runOnUiThread { Toast.makeText(this, "جاري تنزيل الإصدار ${info.name}", Toast.LENGTH_LONG).show() }
                     Updater.install(this, info.url); msg = "تم التنزيل، أكمل التثبيت"
