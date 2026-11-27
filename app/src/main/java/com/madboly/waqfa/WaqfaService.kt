@@ -146,11 +146,11 @@ class WaqfaService : Service() {
         fun glass(fill1: String, fill2: String, stroke: String, r: Int) = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor(fill1), Color.parseColor(fill2))).apply { cornerRadius = dp(r).toFloat(); setStroke(dp(1), Color.parseColor(stroke)) }
         val card = LinearLayout(this)
         card.orientation = LinearLayout.VERTICAL
-        card.background = glass("#4DFFFFFF", "#14FFFFFF", "#73FFFFFF", 34)
+        card.background = glass("#D9356B5E", "#D91B3F39", "#99FFFFFF", 34)
         card.clipToOutline = true
         card.elevation = dp(12).toFloat()
         val hd = LinearLayout(this); hd.orientation = LinearLayout.VERTICAL; hd.setPadding(dp(22), dp(18), dp(70), dp(6))
-        val ht = TextView(this); ht.text = "وردك الآن"; ht.setTextColor(Color.WHITE); ht.textSize = 19f; ht.typeface = android.graphics.Typeface.DEFAULT_BOLD; ht.setShadowLayer(6f, 0f, 1f, Color.argb(110, 0, 0, 0))
+        val ht = TextView(this); ht.text = "وردك الآن"; ht.setTextColor(Color.WHITE); ht.textSize = 19f; ht.typeface = android.graphics.Typeface.DEFAULT_BOLD; 
         val hs = TextView(this); hs.setTextColor(Color.argb(210, 255, 255, 255)); hs.textSize = 13f
         hs.text = if (book != null) book.title + "  ·  صفحة $page من " + book.count else "صفحة $page" + Wird.surahName(page).let { if (it.isEmpty()) "" else "  ·  $it" }
         hd.addView(ht); hd.addView(hs)
@@ -192,8 +192,9 @@ class WaqfaService : Service() {
         row.addView(later, LinearLayout.LayoutParams(0, dp(54), 1f).apply { setMargins(dp(6), 0, dp(6), 0) })
         card.addView(row, LinearLayout.LayoutParams(-1, -2))
         root.addView(card, FrameLayout.LayoutParams(-1, -1).apply { setMargins(dp(16), dp(46), dp(16), dp(46)); gravity = Gravity.CENTER })
-        val mn = TextView(this); mn.text = "\u23F8"; mn.textSize = 15f; mn.gravity = Gravity.CENTER; mn.setTextColor(Color.WHITE)
+        val mn = FrameLayout(this)
         mn.background = GradientDrawable().apply { setColor(Color.parseColor("#38FFFFFF")); shape = GradientDrawable.OVAL; setStroke(dp(1), Color.parseColor("#80FFFFFF")) }
+        for (k in 0..1) mn.addView(View(this).apply { background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(2).toFloat() } }, FrameLayout.LayoutParams(dp(4), dp(14)).apply { gravity = Gravity.CENTER; leftMargin = if (k == 0) -dp(5) else dp(5) })
         root.addView(mn, FrameLayout.LayoutParams(dp(38), dp(38)).apply { gravity = Gravity.TOP or Gravity.LEFT; setMargins(dp(38), dp(66), dp(22), 0) })
         mn.setOnClickListener { minimize(page) }
         done.setOnClickListener {
