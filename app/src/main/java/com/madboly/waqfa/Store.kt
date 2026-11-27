@@ -27,6 +27,7 @@ class Store(ctx: Context) {
     var lastTick: Long get() = l("last_tick"); set(v) = pl("last_tick", v)
     var lastErr: String get() = s("last_err"); set(v) = ps("last_err", v)
     var why: String get() = s("why"); set(v) = ps("why", v)
+    var wallMode: Boolean get() = b("wall_mode", false); set(v) = pb("wall_mode", v)
     var sAt: Long get() = l("s_at"); set(v) = pl("s_at", v)
     var sActive: Boolean get() = b("s_active", false); set(v) = pb("s_active", v)
     var overlayUp: Boolean get() = b("overlay_up", false); set(v) = pb("overlay_up", v)

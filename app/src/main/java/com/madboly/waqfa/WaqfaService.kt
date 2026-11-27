@@ -50,6 +50,7 @@ class WaqfaService : Service() {
             Prayer.ensure(store)
             val hold = if (Library.nextIsBook(store) && !store.booksPrayer) null else Prayer.blockedUntil(store)
             store.holdMsg = if (hold != null) "مؤجّل لوقت الصلاة حتى $hold" else ""
+            if (store.overlayUp && overlay == null && bubble == null) { store.overlayUp = false; Log.i(this@WaqfaService, "cleared stuck window flag") }
             Background.accrue(this@WaqfaService, false)
             val smart = Wird.smartHold(this@WaqfaService, store)
             val call = inCall()

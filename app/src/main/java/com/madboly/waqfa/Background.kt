@@ -38,10 +38,16 @@ object Background {
             val pm = c.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
             val km = c.getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
             val act = pm.isInteractive && !km.isKeyguardLocked
-            if (st.sActive && st.sAt > 0 && (event || act)) {
-                val gap = now - st.sAt
-                if (gap in 1..CAP && !st.overlayUp) st.accMs = st.accMs + gap
-            }
+            val gap = now - st.sAt
+            var skip = ""
+            if (st.sAt <= 0) skip = "first run"
+            else if (st.overlayUp) skip = "window or bubble is up"
+            else if (st.wallMode) { if (gap > 0) st.accMs = st.accMs + gap }
+            else if (!st.sActive) skip = "previous state was screen off or locked"
+            else if (!(event || act)) skip = "screen off or locked now"
+            else if (gap > 0) st.accMs = st.accMs + gap.coerceAtMost(CAP)
+            if (skip != "" && gap > 20000 && skip != lastSkip) { lastSkip = skip; Log.i(c, "counter skipped " + gap / 1000 + "s: " + skip) }
+            if (skip == "") lastSkip = ""
             if (event) Log.i(c, "screen event, active=$act acc=${st.accMs / 1000}s")
             st.sAt = now; st.sActive = act
             if (st.enabled) scheduleDue(c, st, act)
@@ -50,6 +56,7 @@ object Background {
 
     private fun duePi(c: Context) = PendingIntent.getBroadcast(c, 6, Intent(c, DueReceiver::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
+    @Volatile private var lastSkip = ""
     @Volatile private var lastDue = 0L
     @Volatile private var lastCancelWhy = ""
 

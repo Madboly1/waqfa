@@ -280,6 +280,8 @@ class MainActivity : Activity() {
         section(col, "التنبيه الذكي", false) { s ->
             val sv = CheckBox(this); sv.text = "تأجيل النافذة والشاشة بالعرض (فيديو أو ألعاب)"; sv.isChecked = store.smartVideo
             sv.setOnCheckedChangeListener { _, o -> store.smartVideo = o }; s.addView(sv)
+            val wc = CheckBox(this); wc.text = "العدّ بالوقت العادي (مش وقت الاستخدام فقط)"; wc.isChecked = store.wallMode
+            wc.setOnCheckedChangeListener { _, o -> store.wallMode = o }; s.addView(wc, lp(6))
             s.addView(label("المكالمات تؤجّل النافذة تلقائيًا دائمًا.", 12f).apply { setTextColor(Color.GRAY) }, lp(2))
             s.addView(label("مدة «لاحقًا» بالدقائق (وقت شاشة)", 15f, true), lp(12))
             val le = numField("مثلًا ٥", store.snoozeMin.toString())
